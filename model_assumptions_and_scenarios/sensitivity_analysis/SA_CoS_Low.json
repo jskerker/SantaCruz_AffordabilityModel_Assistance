@@ -1,0 +1,7 @@
+{
+	"factor_demand_multiplier": 1.0,
+    "filename_inf_planning_assumptions": "inf_planning_assumptions.json",
+    "filename_cashflow_rate_assumptions": "sensitivity_analysis/cashflow_rate_assumptions_CoS_Low.json",
+    "filename_assistance_assumptions": "sensitivity_analysis/cashflow_rate_assumptions_CoS_Low.json"
+    
+}

@@ -1,0 +1,62 @@
+{
+	"type": "desal planning test",
+    "operations_monthly_fraction": [0.33, 0.33, 0.33, 0.33, 0.67, 0.67, 0.67, 0.67, 0.67, 0.67, 0.33, 0.33],
+    "deploy_time_yrs": 6,
+    "payback_period_yrs": 30,
+    "inf_lifetime_yrs": 30,
+    "moving_avg_yrs_check_conditions": 10,
+    "check_desal_frequency_yrs": 10,
+    "criteria_fraction_unmet_demand": 0.02,
+    "max_deficit_yrs_to_check": 10,
+    "threshold_rof": 0.1,
+    "bins_demand_MG": [2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000],
+    "bins_storage_percent": [40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100],
+    
+    "inf_options": [
+
+        {
+            "name": "TRANSFER_SOQUEL",
+            "capex": 0,
+            "opex": 585400,
+            "deploy_time_yrs": 1,
+            "inf_lifetime_yrs": 30,
+            "order": 4,
+            "note": "n/a"
+        },
+        {
+            "name": "TRANSFER_SCOTTS_VALLEY",
+            "capex": 3345600,
+            "opex": 167280,
+            "deploy_time_yrs": 1,
+            "inf_lifetime_yrs": 30,
+            "order": 5
+        },
+        {
+            "name": "MCASR",
+            "capex": 56038800,
+            "opex": 1254600,
+            "deploy_time_yrs": 2,
+            "inf_lifetime_yrs": 30,
+            "order": 2
+        },
+        {
+            "name": "DESALT_4MGD",
+            "capex": 212445600,
+            "opex": 9953160,
+            "deploy_time_yrs": 10,
+            "inf_lifetime_yrs": 30,
+            "order": 3,
+            "note": "n/a"
+        },
+        {
+            "name": "DPR",
+            "capex": 144697200,
+            "opex": 3763800,
+            "deploy_time_yrs": 5,
+            "inf_lifetime_yrs": 30,
+            "order": 1,
+            "note": "n/a"
+        }
+        
+    ]
+}

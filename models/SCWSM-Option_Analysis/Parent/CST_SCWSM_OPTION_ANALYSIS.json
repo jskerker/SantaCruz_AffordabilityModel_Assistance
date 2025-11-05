@@ -1,0 +1,234 @@
+{
+  "metadata": {
+    "title": "SCWSM Main code for fully integrated system",
+    "description": "Water resource system model for the Santa Cruz system to evaluate household water affordability",
+    "author": "Jenny Skerker - jskerker@stanford.edu",
+    "version": "version 2: CAPs work"
+  },
+
+  "timestepper": {
+    "start": -999,
+    "end": -999,
+    "timestep": 1
+  },
+
+  "nodes": [
+
+    
+  ],
+
+  "edges": [
+    
+  ],
+
+  "parameters": {
+
+    "conversion_CFS_to_MGD": {
+      "type": "constant",
+      "value": 0.6463
+    },
+    "order_TRANSFER_SOQUEL": {
+        "type": "constant",
+        "value": -999
+    },
+    "order_TRANSFER_SCOTTS_VALLEY": {
+        "type": "constant",
+        "value": -999
+    },
+    "order_DESALT_4MGD": {
+        "type": "constant",
+        "value": -999
+    },
+    "order_DPR": {
+        "type": "constant",
+        "value": -999
+    },
+    "order_MCASR": {
+        "type": "constant",
+        "value": -999
+    },
+    "planning_inf": {
+      "type": "CHECK_PLANNING_INF",
+      "param_name": ["order_TRANSFER_SOQUEL", "order_TRANSFER_SCOTTS_VALLEY", "order_DESALT_4MGD"],
+      "parameters": ["order_TRANSFER_SOQUEL", "order_TRANSFER_SCOTTS_VALLEY", "order_DESALT_4MGD"]
+    },
+    
+
+    "is_transfer_to_Scotts_Valley_included": {
+      "type": "UPDATE_TRANSFER_SCOTTS_VALLEY",
+      "param_name": "inf_time_tracker",
+      "parameters": ["inf_time_tracker"]
+    },
+    
+    "precipitation_monthly_mm": {
+      "type": "dataframe",
+      "url": "",
+      "column": "Precip",
+      "index_col": "Date",
+      "parse_dates": true
+    },
+    "evaporation_monthly_mm": {
+      "type": "dataframe",
+      "url": "",
+      "column": "Evap",
+      "index_col": "Date",
+      "parse_dates": true
+    },
+    "temperature_monthly_degC": {
+      "type": "dataframe",
+      "url": "",
+      "column": "TempAvg_adj",
+      "index_col": "Date",
+      "parse_dates": true
+    },
+    "number_of_days_per_month": {
+      "type": "monthlyprofile",
+      "values": [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    },
+    
+    "santa_cruz_MF_demand_MGD": {
+        "type": "monthlyprofile",
+        "values": -999
+      },
+    
+    "santa_cruz_demand_other_MGD": {
+    "type": "monthlyprofile",
+    "values": -999
+    },
+    
+    "santa_cruz_losses_MGD": {
+        "type": "monthlyprofile",
+        "values": -999
+    },
+
+    "previous_time_step_demand": {
+        "type": "GET_PREVIOUS_DEMAND"
+    },
+    
+    "inf_time_tracker": {
+        "type": "TIME_TRACKER",
+        "param_name": "planning_inf",
+        "parameters": ["planning_inf"]
+    },
+    "is_SMGWB_ASR_included": {
+      "type": "UPDATE_SMASR",
+      "param_name": "inf_time_tracker",
+      "parameters": ["inf_time_tracker"]
+    },
+    "is_MCGWB_ASR_included": {
+      "type": "UPDATE_MCASR",
+      "param_name": "inf_time_tracker",
+      "parameters": ["inf_time_tracker"]
+    },
+    
+    "desalination_plant_yield": {
+      "type": "DESALINATION_PLANT_YIELD",
+      "param_name": ["desalination_capacity_mgd", "is_DESALT_included"],
+      "parameters": ["desalination_capacity_mgd", "is_DESALT_included"]
+    },
+    "is_DESALT_included": {
+      "type": "UPDATE_DESALT_V2",
+      "param_name": "inf_time_tracker",
+      "parameters": ["inf_time_tracker"]
+    },
+    "desalination_capacity_mgd": {
+        "type": "UPDATE_DESALT_CAPACITY",
+        "param_name": "inf_time_tracker",
+        "parameters": ["inf_time_tracker"]
+    },
+
+    },
+    "direct_potable_reuse_plant_yield": {
+      "type": "DIRECT_POTABLE_REUSE_PLANT_YIELD"
+    },
+    "is_DPR_included": {
+          "type": "UPDATE_DPR",
+          "param_name": "inf_time_tracker",
+          "parameters": ["inf_time_tracker"]
+    },
+    
+    "is_water_from_soquel_included": {
+          "type": "UPDATE_TRANSFER_SOQUEL",
+          "param_name": "inf_time_tracker",
+          "parameters": ["inf_time_tracker"]
+    },
+    
+    "cashflow_model": {
+      "type": "CASHFLOW_MODEL",
+      "param_name": ["planning_inf", "inf_time_tracker"],
+      "parameters": ["planning_inf", "inf_time_tracker"]
+    },
+    "water_rate_structure": {
+      "type": "WATER_RATE_STRUCTURE",
+      "param_name": ["cashflow_model"],
+      "parameters": ["cashflow_model"]
+    },
+    "santa_cruz_demand_MGD": {
+      "type": "HOUSEHOLD_DEMAND_DYNAMIC",
+      "param_name": ["water_rate_structure", "previous_time_step_demand"],
+      "parameters": ["water_rate_structure", "previous_time_step_demand"]
+    },
+    "planning_afford": {
+      "type": "CHECK_HOUSE_AFFORD",
+      "param_name": ["santa_cruz_demand_MGD"],
+      "parameters": ["santa_cruz_demand_MGD"]
+
+    },
+    "assisted_bills": {
+      "type": "CALC_ASSIST_BILL",
+      "param_name": ["santa_cruz_demand_MGD", "planning_afford"],
+      "parameters": ["santa_cruz_demand_MGD", "planning_afford"]
+
+    },
+    "hh_income_map": {
+      "type": "constant",
+      "value": -999
+    },
+    "threshold_rof": {
+        "type": "constant",
+        "value": -999
+    }
+    
+ },
+
+  
+  "recorders": {
+    
+    "Plan_inf_yes_no": {
+    "type": "numpyarrayparameterrecorder",
+    "parameter": "planning_inf"
+    },
+    
+    "Desal_capacity_mgd": {
+    "type": "numpyarrayparameterrecorder",
+    "parameter": "desalination_capacity_mgd"
+        
+    },
+    
+    "Desal_is_it_included": {
+    "type": "numpyarrayparameterrecorder",
+    "parameter": "is_DESALT_included"
+    },
+    
+    "SMGWB_is_it_included": {
+    "type": "numpyarrayparameterrecorder",
+    "parameter": "is_SMGWB_ASR_included"
+    },
+    
+    "MCGWB_is_it_included": {
+    "type": "numpyarrayparameterrecorder",
+    "parameter": "is_MCGWB_ASR_included"
+    },
+    
+    "TRANSFER_SOQUEL_is_it_included": {
+    "type": "numpyarrayparameterrecorder",
+    "parameter": "is_water_from_soquel_included"
+    },
+    
+    "TRANSFER_SCOTTS_VALLEY_is_it_included": {
+    "type": "numpyarrayparameterrecorder",
+    "parameter": "is_transfer_to_Scotts_Valley_included"
+    }
+    
+  }
+}
