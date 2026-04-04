@@ -87,6 +87,27 @@
       "type": "monthlyprofile",
       "values": [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
     },
+    "santa_cruz_farmer_demand_profile":{
+      "type": "monthlyprofile",
+      "values": -999
+    },
+    "santa_cruz_farmer_demand_annual_MGD": {
+      "type": "constant",
+      "value": -999
+    },
+    "santa_cruz_farmer_demand_MGD": {
+      "type": "aggregated",
+      "agg_func": "product",
+      "parameters": [
+        "santa_cruz_farmer_demand_profile",
+        {"type": "DivisionParameter", "numerator": {"type": "constant", "value":1},
+         "denominator": {"type":"constant", "value":100}},
+        "santa_cruz_farmer_demand_annual_MGD",
+        {"type": "DivisionParameter", "numerator": {"type": "constant", "value":1},
+         "denominator": "number_of_days_per_month"}
+      ]
+    },
+
     
     
     "santa_cruz_MF_demand_MGD": {
@@ -123,6 +144,13 @@
       "param_name": "inf_time_tracker",
       "parameters": ["inf_time_tracker"]
     },
+    "MCGWB_switch": {
+      "type": "MCGWB_SWITCH"
+    },
+    "Soquel_switch":{
+        "type":"Soquel_SWITCH"
+    },
+
     
     "desalination_plant_yield": {
       "type": "DESALINATION_PLANT_YIELD",
@@ -148,6 +176,9 @@
           "param_name": "inf_time_tracker",
           "parameters": ["inf_time_tracker"]
     },
+    "water_month_type": {
+          "type": "WATER_MONTH_TPYE"
+    },
 
     "is_water_from_soquel_included": {
           "type": "UPDATE_TRANSFER_SOQUEL",
@@ -171,8 +202,10 @@
     },
     "santa_cruz_demand_MGD": {
       "type": "HOUSEHOLD_DEMAND_DYNAMIC",
-      "param_name": ["water_rate_structure", "previous_time_step_demand", "factor_demand_multiplier"],
-      "parameters": ["water_rate_structure", "previous_time_step_demand", "factor_demand_multiplier"]
+      "parameters": ["water_rate_structure", "previous_time_step_demand", "factor_demand_multiplier", "hh_income_map"],
+      "filename_cashflow": "cashflow_rate_assumptions.json",
+      "filename_coefs": "DCCcoefs_v1.csv",
+      "filename_hhs": "resampled_income_data.csv"
     },
     "planning_afford": {
       "type": "CHECK_HOUSE_AFFORD",
@@ -189,6 +222,11 @@
     "threshold_rof": {
         "type": "constant",
         "value": -999
+    },
+    "santa_cruz_farmer_demand_annual_MGD": {
+      "type": "constant",
+      "value": -999
+
     }
     
  },

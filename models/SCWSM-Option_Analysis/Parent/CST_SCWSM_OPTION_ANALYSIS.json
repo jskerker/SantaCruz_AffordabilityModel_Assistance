@@ -85,6 +85,26 @@
       "type": "monthlyprofile",
       "values": [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
     },
+    "santa_cruz_farmer_demand_profile":{
+      "type": "monthlyprofile",
+      "values": -999
+    },
+    "santa_cruz_farmer_demand_annual_MGD": {
+      "type": "constant",
+      "value": -999
+    },
+    "santa_cruz_farmer_demand_MGD": {
+      "type": "aggregated",
+      "agg_func": "product",
+      "parameters": [
+        "santa_cruz_farmer_demand_profile",
+        {"type": "DivisionParameter", "numerator": {"type": "constant", "value":1},
+         "denominator": {"type":"constant", "value":100}},
+        "santa_cruz_farmer_demand_annual_MGD",
+        {"type": "DivisionParameter", "numerator": {"type": "constant", "value":1},
+         "denominator": "number_of_days_per_month"}
+      ]
+    },
     
     "santa_cruz_MF_demand_MGD": {
         "type": "monthlyprofile",
@@ -120,6 +140,13 @@
       "param_name": "inf_time_tracker",
       "parameters": ["inf_time_tracker"]
     },
+    "MCGWB_switch": {
+      "type": "MCGWB_SWITCH"
+    },
+    "Soquel_switch":{
+        "type":"Soquel_SWITCH"
+    },
+
     
     "desalination_plant_yield": {
       "type": "DESALINATION_PLANT_YIELD",
@@ -145,6 +172,9 @@
           "type": "UPDATE_DPR",
           "param_name": "inf_time_tracker",
           "parameters": ["inf_time_tracker"]
+    },
+    "water_month_type": {
+      "type": "WATER_MONTH_TPYE"
     },
     
     "is_water_from_soquel_included": {
@@ -187,7 +217,16 @@
     "threshold_rof": {
         "type": "constant",
         "value": -999
-    }
+    },
+},
+
+"santa_cruz_farmer_demand_annual_MGD": {
+
+  "type": "constant",
+
+  "value": -999
+
+}
     
  },
 
