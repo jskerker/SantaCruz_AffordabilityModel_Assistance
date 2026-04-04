@@ -146,7 +146,7 @@ print('import packages & define functions')
 #%% Load cost data
 
 # import all monthly assistance data and filter by periods with max rate dates
-filepath = '/Volumes/OneTouch/CAPs_Results/Results_Baseline_Oct2025/'
+filepath = '../../results/CAPs_Results/'
 real_All = [1270, 1956, 1987, 2770, 3449, 3515, 3574, 4211, 4373, 4937]
 dT_All = [0, 1]
 dP_All = [100]

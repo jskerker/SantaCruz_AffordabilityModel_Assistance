@@ -159,22 +159,22 @@ dP_All = [80, 90]
 dCV_All = [1.2]
 combinations = list(itertools.product(real_All, dT_All, dP_All, dCV_All, demand_All))
 name_add = 'Baseline_'
-# for combo in combinations:
-#     print(combo)
-#
-#     # current conditions data
-#     df_filter = get_assisted_bill_sample_with_max_dates(filepath, combo, name_add, columns)
-#     df_cc_list.append(df_filter)
-#
-# # create dataframes from lists
-# df_hist_hh = pd.concat(df_hist_list, ignore_index=True)
-# df_modcool_hh = pd.concat(df_modcool_list, ignore_index=True)
-# df_cc_hh = pd.concat(df_cc_list, ignore_index=True)
+for combo in combinations:
+    print(combo)
 
-# save data
-#df_hist_hh.to_csv(filepath + 'df_hist_hh_Fig6.csv')
-#df_modcool_hh.to_csv(filepath + 'df_modcool_hh_Fig6.csv')
-#df_cc_hh.to_csv(filepath + 'df_cc_hh_Fig6.csv')
+    # current conditions data
+    df_filter = get_assisted_bill_sample_with_max_dates(filepath, combo, name_add, columns)
+    df_cc_list.append(df_filter)
+
+# create dataframes from lists
+df_hist_hh = pd.concat(df_hist_list, ignore_index=True)
+df_modcool_hh = pd.concat(df_modcool_list, ignore_index=True)
+df_cc_hh = pd.concat(df_cc_list, ignore_index=True)
+
+save data
+df_hist_hh.to_csv(filepath + 'df_hist_hh_Fig6.csv')
+df_modcool_hh.to_csv(filepath + 'df_modcool_hh_Fig6.csv')
+df_cc_hh.to_csv(filepath + 'df_cc_hh_Fig6.csv')
 
 # reimport data
 df_hist_hh = pd.read_csv(filepath + 'df_hist_hh_Fig6.csv')
@@ -239,9 +239,7 @@ ax11 = fig.add_subplot(gs[1, 1])
 ax12 = fig.add_subplot(gs[1, 2])
 axes_all_AR = [ax10, ax11, ax12]
 list_dfs = [df_hist_hh[cols], df_modcool_hh[cols], df_cc_hh[cols]]
-# scenarios_list = ['Current conditions', 'Moderate, cool', 'Dry, hot']
-# labels_list = ['Income', 'Fixed: \n$25', 'Fixed: \n$50', 'Fixed: \n$100', 'Fee: \n100%', 'Vol.: \n50%', 'Vol.: \n70%', 'Vol.: \n90%']
-# colors = ['dodgerblue', 'olivedrab', 'olivedrab', 'olivedrab', 'salmon', 'gold', 'gold', 'gold']
+
 # loop through subplots and climate scenarios
 for i in range(3):
     axes_all_AR[i].plot([0.5, 6.5], [2.5, 2.5], color='k', linewidth=1.5, linestyle='--')

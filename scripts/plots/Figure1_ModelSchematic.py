@@ -39,7 +39,7 @@ ax0.imshow(image_A)
 ax0.axis("off")
 ax0.set_title('Model Framework', fontweight='bold', fontsize=11, pad=8)
 
-# second subplot: two precipitation paths
+# second subplot: examples of assistance types
 ax10 = fig.add_subplot(gs[1, 0])
 ax10.imshow(image_B)
 ax10.axis("off")

@@ -85,7 +85,7 @@ print('import packages & define functions')
 
 #%% import and process data
 # import data- mod, cool 3449
-filepath = '/Volumes/OneTouch/CAPs_Results/Results_v2_28March2025/'
+filepath = '../../results/CAPs_Results/'
 real_All = [3449]  # , 3515, 3574, 4211, 4373, 4937] 1270, 1956, 1987, 2770,
 dT_All = [0]
 dP_All = [100]

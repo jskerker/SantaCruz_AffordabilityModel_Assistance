@@ -79,7 +79,7 @@ print('import packages & define functions')
 
 #%% Compile data for 3 climate scenarios
 # 1. current conditions
-filepath = '/Volumes/OneTouch/CAPs_Results/Results_Baseline_Oct2025/'
+filepath = '../../results/CAPs_Results/'
 real_All = [1270, 1956, 1987, 2770, 3449, 3515, 3574, 4211, 4373, 4937]
 dT_All = [0, 1]
 dP_All = [100]
@@ -91,7 +91,6 @@ df_combined_hist = compile_aggregated_sims_data(filepath, combinations, name_add
 df_combined_hist.to_csv(filepath + 'df_combined_hist_Fig7.csv')
 
 # 2. moderate scenario
-filepath = '/Volumes/OneTouch/CAPs_Results/Results_Baseline_Oct2025/'
 real_All = [1270, 1956, 1987, 2770, 3449, 3515, 3574, 4211, 4373, 4937]
 dT_All = [0, 1]
 dP_All = [100]
@@ -103,7 +102,6 @@ df_combined = compile_aggregated_sims_data(filepath, combinations, name_add='Bas
 df_combined.to_csv(filepath + 'df_combined_modcool_Fig7.csv')
 
 # 3. dry scenario
-filepath = '/Volumes/OneTouch/CAPs_Results/Results_Baseline_Oct2025/'
 real_All = [1270, 1956, 1987, 2770, 3449, 3515, 3574, 4211, 4373, 4937]
 dT_All = [4, 5]
 dP_All = [80, 90]
