@@ -44,7 +44,7 @@ class simSetup:
             open(path_model + '.gitkeep', 'a').close()
 
         # import model assumptions and scenarios
-        # file not included in Github reoi
+        # file not included in Github repo
         model_assumptions_CSTE = pd.read_csv(
             '../model_assumptions_and_scenarios/model_assumptions_CSTE.csv',
             index_col='Assumption', usecols=['Assumption', version])
@@ -184,17 +184,17 @@ class simSetup:
             index_col='Assumption')
 
         # Path to the csv file containing the streamflow input
-        # files not included in Github repo
+        # files on Zenodo
         flow_path = '../../../../../Santa_Cruz_WRM_updated/data/input_climate_stress_test/FLOW/' \
                     'FLOW_P{}T{}_R{}_dCV={}.csv'
 
 
         # Path to the csv file containing the weather input
-        # files not included in Github repo
+        # files on Zenodo
         weather_path = '../../../../../Santa_Cruz_WRM_updated/data/input_climate_stress_test/WEATHER/' \
                        'weather_dT={}_dP={}_R{}_dCV={}.csv'
 
-        # files not included in Github repo
+        # monthly climate files- in zip file on Github
         monthly_path = '../../../../../Santa_Cruz_WRM_updated/data/climate_monthly/' \
                        'climate_monthly_dT={}_dP={}_R{}_dCV={}.csv'
 

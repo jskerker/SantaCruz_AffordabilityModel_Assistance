@@ -46,39 +46,82 @@ class householdDemand:
         return cls.DCCcoef    
     
 
-    def __init__(self, margPrices, fixedFees, month, year, curtail=0, tempC=15, precipMM=0, AET=300, rnd_income_group=1, factor=1):
+    def __init__(self):
+        print('initialize householdDemand class instance')
+        self.HHdata = None
+        self.DCCcoef = None
+        self.load_cashflow_rate_params = False
 
-        # import data from json file
-        file_name = "../model_assumptions_and_scenarios/cashflow_rate_assumptions.json"
-        with open(file_name) as f:
-            self.params = json.load(f)  # json parser, could look at numpy and pandas parsers
-        for key in self.params:
-            setattr(self, key, self.params[key])
+    def load_csv_hhdata(self, csv_file_path1):
+        """Load household data from CSV, only once per instance."""
+        if self.HHdata is None:
+            print("Loading HH data...")
+            self.HHdata = pd.read_csv(csv_file_path1)
+        else:
+            print("HH data already loaded, using cached version.")
+        self.HHdata_backup = self.HHdata.copy()
+        return self.HHdata
 
-        if self.HHdata is not None: #  or HHdata.empty
+    def load_csv_dcc_coef(self, csv_file_path2):
+        """Load DCC coefficients from CSV and convert to dictionary of floats, only once per instance."""
+        if self.DCCcoef is None:
+            print("Loading DCC coefficients...")
+            df = pd.read_csv(csv_file_path2)
+            df.columns = ['key', 'value']
+            dcc_dict = df.set_index('key').to_dict(orient='index')
+            for key in dcc_dict:
+                dcc_dict[key] = float(dcc_dict[key]['value'])
+            self.DCCcoef = dcc_dict
+            print('DCC coefficients: {}'.format(self.DCCcoef))
+        else:
+            print("DCC coefficients already loaded, using cached version.")
+        return self.DCCcoef
+
+    def load_cashflow_params(self, csv_file_path3):
+        """Load cashflow rate parameters from json and add as attrib utes to class."""
+        if self.load_cashflow_rate_params is False:
+            print("Loading cashflow rate parameters...")
+            with open(csv_file_path3) as f:
+                self.params = json.load(f)
+
+            for key, val in self.params.items():
+                setattr(self, key, val)
+            self.load_cashflow_rate_params = True
+        else:
+            print("Cashflow rate parameters, using cached version.")
+        return self.load_cashflow_rate_params
+
+    # function to update household data parameters
+    def update_hh_data(self, margPrices, fixedFees, month, year, curtail=0, tempC=15, precipMM=0, AET=300,
+                       rnd_income_group=1, factor=1):
+        # print('initialize instance of household demand class')
+        # self.num_accts = 0 # initialize this value
+        if self.HHdata is not None:
+            # start fresh every time we run another month of the model
+            self.HHdata = self.HHdata_backup.copy()
             self.taxValue = np.array(self.HHdata['tax_value'])
             self.mainArea = np.array(self.HHdata['Main_Area'])
             self.pool = np.array(self.HHdata['Pool2'])
             self.bathrooms = np.array(self.HHdata['Bathrooms_F_H2'])
 
             # get household residual values
-            self.resid_dbc = np.array(self.HHdata['mean_residuals_real']) # 'mean_residuals_log'
+            self.resid_dbc = np.array(self.HHdata['mean_residuals_real'])
 
             # number of accounts in dataset
             self.num_accts = len(self.HHdata)
 
             # random income group and column
-            self.rnd_income_group = rnd_income_group
+            self.rnd_income_group = int(rnd_income_group)
             self.col_name_income = 'map_inc_' + str(self.rnd_income_group)
+            print('random income group to use: ', self.rnd_income_group)
 
             # add income class to dataset
             col_demand = 'income_class'
             if col_demand not in self.HHdata.columns:
                 self.calc_income_class()
-            
+
         else:
             print('hh data is none')
-
 
         # climate data
         self.tempC = tempC
@@ -105,31 +148,9 @@ class householdDemand:
         self.tier_cutoffs = np.insert(tier_cutoffs_array, 0, 0)
         self.tier_diff = np.diff(self.tier_cutoffs)
 
-        # get statistics for AR and bills-- hardcoded 5th, 50th, and 95th percentiles for now
-        self.prct_low = 0.05
-        self.prct_med = 0.5
-        self.prct_high = 0.95
-        
         # create for loop for column names for totalBills and AR for all income classes and quantiles
         self.income_classes = 16
-        prctiles = [self.prct_low, self.prct_med, self.prct_high]
-        col_names = []
-        col_names_bill = []
-        col_names_AR = []
-        for ic in np.arange(1, self.income_classes+1):
-            for prct in prctiles:
-                
-                col_name = 'demand_IC{}_Prct{}'.format(ic, prct)
-                col_names.append(col_name)
-                
-                col_name_bill = 'Bill_IC{}_Prct{}'.format(ic, prct)
-                col_names_bill.append(col_name_bill)
         
-                col_name_AR = 'AR_IC{}_Prct{}'.format(ic, prct)
-                col_names_AR.append(col_name_AR)
-
-        self.col_names = col_names + col_names_bill + col_names_AR
-
         
     # this function computes the household demands using the DCC model coefficients in a vectorized form
     def calcHHdemand_vectorized(self):
@@ -213,26 +234,32 @@ class householdDemand:
         col_demand = 'demand'
         if col_demand not in self.HHdata.columns:
             self.calcHHdemand()
-        # Define conditions and choices for np.select
-        conditions = [
-            self.HHdata['tier'] == 1,
-            self.HHdata['tier'] == 2,
-            self.HHdata['tier'] == 3
-        ]
+        # Define conditions and choices based on number of tiers
+        conditions = [self.HHdata['tier'] == i for i in range(1, self.num_tiers + 1)]
 
-        # switched this to margPrices2
-        choices = [
-            self.HHdata['demand'] * self.margPrices.loc[0, 'price'],
-            self.margPrices.loc[0, 'cutoff'] * self.margPrices.loc[0, 'price'] + (
-                        self.HHdata['demand'] - self.margPrices.loc[0, 'cutoff']) * self.margPrices.loc[1, 'price'],
-            self.margPrices.loc[0, 'cutoff'] * self.margPrices.loc[0, 'price'] + (
-                        self.margPrices.loc[1, 'cutoff'] - self.margPrices.loc[0, 'cutoff']) * self.margPrices.loc[1, 'price'] \
-            + (self.HHdata['demand'] - self.margPrices.loc[1, 'cutoff']) * self.margPrices.loc[2, 'price']
-        ]
+        choices = []
+        for k in range(self.num_tiers):
+            # Fixed charge for all previous tiers
+            fixed = 0
+            prev_cutoff = 0
+
+            for i in range(k):  # i = 0 ... k-1
+                cutoff = self.margPrices.loc[i, 'cutoff']
+                price = self.margPrices.loc[i, 'price']
+                fixed += (cutoff - prev_cutoff) * price
+                prev_cutoff = cutoff
+
+            # Variable charge for current tier k
+            price_k = self.margPrices.loc[k, 'price']
+            variable = (self.HHdata['demand'] - prev_cutoff) * price_k
+
+            # Total
+            choices.append(fixed + variable)
 
         # Apply the conditions and choices
         self.HHdata['vol_cost'] = np.select(conditions, choices, default=np.nan)
         self.HHdata['vol_cost'] = self.HHdata['vol_cost'].fillna(0)
+        
 
     # function calculates the total water bill costs
     def calc_water_bill(self):

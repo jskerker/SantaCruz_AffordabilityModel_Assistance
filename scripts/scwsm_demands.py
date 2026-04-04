@@ -43,49 +43,60 @@ class HOUSEHOLD_DEMAND_DYNAMIC(Parameter):
     The demands are constant daily throughout the month.
 
     """
-
-    def __init__(self, model, param_name,
-                 parameters):
+    # Default filenames (class-level so they are easy to manage)
+    DEFAULT_CASHFLOW_FILE = "cashflow_rate_assumptions.json"
+    DEFAULT_COEFS_FILE = "DCCcoefs_v1.csv"
+    DEFAULT_HHS_FILE = "resampled_income_data.csv"
+    
+    def __init__(self, model,parameters, filename_cashflow=None, filename_coefs=None, filename_hhs=None, **kwargs):
         super().__init__(model)
         print('initialize santa_cruz_demand_MGD')
 
         # add children parameters
-        self.param_name = param_name
         self.parameters = parameters
+        for parameter in self.parameters:
+            print('parameter: {}'.format(parameter))
+            self.children.add(parameter)
 
-        # Demand initialization-- could just try 2800/365 days for now
-        self.demand_dynamic = 7.7
+        # --- Apply defaults if missing ---
+        filename_cashflow = filename_cashflow or self.DEFAULT_CASHFLOW_FILE
+        filename_coefs = filename_coefs or self.DEFAULT_COEFS_FILE
+        filename_hhs = filename_hhs or self.DEFAULT_HHS_FILE
+        # --- Load household data ---
+        filepath_hhs = f"../data/dcc_data/{filename_hhs}"
+        filepath_coefs = f"../data/dcc_data/{filename_coefs}"
 
-        # Load the CSV data into the householdDemand class
-        # household data
-        filename1 = '../data/dcc_data/resampled_income_data.csv'
-        filepath1 = filename1
-
-        # dcc coefficients
-        filename2 = '../data/dcc_data/DCCcoefs_v1.csv'
-        filepath2 = filename2
-        householdDemand.load_csv_hhdata(filepath1)
-        householdDemand.load_csv_dcc_coef(filepath2)
-        num_accts = len(householdDemand.HHdata)
+        # initialize instance of householdDemand class
+        self.HHdemand = householdDemand()
+        self.HHdemand.load_csv_hhdata(filepath_hhs)
+        self.HHdemand.load_csv_dcc_coef(filepath_coefs)
+        num_accts = len(self.HHdemand.HHdata)
         self.num_accts = num_accts
-        # error terms
-        householdDemand.HHdata['eps_data'] = np.random.normal(loc=0, scale=1, size=num_accts)
-        householdDemand.HHdata['eta_data'] = np.random.normal(loc=0, scale=1, size=num_accts)
+        print('FILENAMES: cashflow: {}, coefs: {}, households: {}'.format(filename_cashflow, filename_coefs, num_accts))
 
-        # hard code curtailment policy for now for dcc model- fix this later
+        # --- Load cashflow JSON ---
+        file_path_cashflow = f"../model_assumptions_and_scenarios/{filename_cashflow}"
+        with open(file_path_cashflow) as f:
+            self.params = json.load(f)
+
+        for key, val in self.params.items():
+            setattr(self, key, val)
+
+        self.HHdemand.load_cashflow_params(file_path_cashflow)
+        print('number of tiers in HOUSEHOLD_DEMAND_DYNAMIC: {}'.format(self.num_tiers))
+        print('AR threshold: {}'.format(self.AR_thresh))
+
+        # hard code curtailment policy for now for dcc model
         self.curtail = 0
 
         # initialize numpy array to hold demand by tier
         num_months = len(pd.date_range(start=self.model.timestepper.start, end=self.model.timestepper.end, freq='MS'))
-        num_tiers = 3
-        self.arr_demand_by_tier = np.zeros((num_months, num_tiers))
+        self.arr_demand_by_tier = np.zeros((num_months, self.num_tiers))
         self.month = 0
 
         # get a random number for the mapped income
         self.hh_income_map = 1 # random.randint(1, 10)
-
-        # get list of households in bottom 3 income groups and top 3 income groups
-        col_income = 'map_inc_' + str(self.hh_income_map)
+                print('HH INCOME MAP INITIALLY: {}'.format(self.hh_income_map))
 
         # create 3d array of zeros for all household demands, bills, and ARs
         self.arr_hh_data = np.zeros(shape=(num_accts, num_months, 3))
@@ -114,10 +125,10 @@ class HOUSEHOLD_DEMAND_DYNAMIC(Parameter):
             AET = self.model.parameters['evaporation_monthly_mm'].get_value(scenario_index)
             tempC = self.model.parameters['temperature_monthly_degC'].get_value(scenario_index)
 
-            self.HHdemand = householdDemand(self.model.parameters['water_rate_structure'].df_volPrices,
-                                            self.model.parameters['water_rate_structure'].df_fixedFees, timestep.month,
-                                            timestep.year, self.curtail, tempC, precipMM, AET, self.hh_income_map,
-                                            self.model.parameters['factor_demand_multiplier'].get_value(scenario_index))
+             self.HHdemand.update_hh_data(self.model.parameters['water_rate_structure'].df_volPrices,
+                                         self.model.parameters['water_rate_structure'].df_fixedFees, timestep.month,
+                                         timestep.year, self.curtail, tempC, precipMM, AET, self.hh_income_map,
+                                         self.model.parameters['factor_demand_multiplier'].get_value(scenario_index))
 
             # calculate the total demand across Santa Cruz
             Q_mgd = self.HHdemand.calcQ()
@@ -169,7 +180,25 @@ class HOUSEHOLD_DEMAND_DYNAMIC(Parameter):
 
     @classmethod
     def load(cls, model, data):
-        return cls(model, **data)
+        """
+        Pywr calls this method to load the parameter from JSON.
+        Use safe `.get()` so missing fields do not raise KeyErrors.
+        """
+        # param_name = data.pop("name", None)
+        parameters = data.pop("parameters")
+
+        # extract filenames safely
+        filename_cashflow = data.pop("filename_cashflow", None)
+        filename_coefs = data.pop("filename_coefs", None)
+        filename_hhs = data.pop("filename_hhs", None)
+
+        return cls(model,
+                   # param_name=param_name,
+                   parameters=parameters,
+                   filename_cashflow=filename_cashflow,
+                   filename_coefs=filename_coefs,
+                   filename_hhs=filename_hhs,
+                   **data)
 
 
 ########## CHECK_PLANNING_INF PARAMETER ##########
@@ -189,6 +218,8 @@ class CHECK_PLANNING_INF(Parameter):
 
         # add children parameters
         self.parameters = parameters
+        for parameter in self.parameters:
+            self.children.add(parameters)
         
         # import data from json file
         file_name = "../model_assumptions_and_scenarios/" + self.filename
@@ -871,7 +902,7 @@ class GET_PREVIOUS_DEMAND(Parameter):
         # initialize numpy array to hold demand by tier
         num_months = len(pd.date_range(start=self.model.timestepper.start, end=self.model.timestepper.end, freq='MS'))
         num_years = len(pd.date_range(start=self.model.timestepper.start, end=self.model.timestepper.end, freq='YS'))
-        num_tiers = 3 # don't hard code this
+        self.num_tiers = self.model.parameters['cashflow_model'].num_tiers
         self.arr_demand_by_tier = np.zeros((num_months, num_tiers))
 
         # compile annual demands into an array
@@ -931,6 +962,7 @@ class CASHFLOW_MODEL(Parameter):
 
         self.days_per_yr = 365
         self.rate_types = ['Quant', 'IRF']
+        self.num_inf = 0
         
         # check that pay-go and debt proportions equal 1, are both >= 0, and exist
         if self.check_value(self.debt_service_fraction) and self.check_value(self.pay_go_fraction):
@@ -947,11 +979,31 @@ class CASHFLOW_MODEL(Parameter):
         self.num_months = len(date_range)
         tier_data = self.tier_boundaries + self.tiers_quant_dollar_per_ccf + self.tiers_irf_dollar_per_ccf + [self.fee_rate_stabilization_dollar_per_ccf] + [0, 0, 0, 0, 0, 0]
         data_repeated = np.tile(tier_data, (self.num_months, 1))
-        col_names = ['UpperBound_T1', 'UpperBound_T2', 'UpperBound_T3', 'Quant_T1', 'Quant_T2', 'Quant_T3', 'IRF_T1', 'IRF_T2', 'IRF_T3', 'Rate_Stab', 'Annuity_monthly_dollars', 'PayGo_monthly_dollars', 'IRF_revenue_needed', 'Opex_monthly_dollars', 'Monthly_assistance_dollars', 'fixed_fee_change']
+        # set up tier ratios dynamically
+        self.tier_ratios_quant = np.zeros(self.num_tiers)
+        self.tier_ratios_irf = np.zeros(self.num_tiers)
+        for i in range(self.num_tiers):
+            if i == 0:
+                self.tier_ratios_quant[i] = 1
+                self.tier_ratios_irf[i] = 1
+            else:
+                self.tier_ratios_quant[i] = getattr(self, f'T{i+1}_T1_quant_ratio')
+                self.tier_ratios_irf[i] = getattr(self, f'T{i+1}_T1_IRF_ratio')
+
+        print('tier ratios quant: {}'.format(self.tier_ratios_quant))
+        print('tier ratios irf: {}'.format(self.tier_ratios_irf))
+
+        # set up column names for dataframe
+        col_names = []
+        for prefix in ['UpperBound', 'Quant', 'IRF']:
+            for i in range(1, self.num_tiers + 1):
+                col_names.append(f"{prefix}_T{i}")
+        col_names.extend(['Rate_Stab', 'Annuity_monthly_dollars', 'PayGo_monthly_dollars', 'IRF_revenue_needed',
+                          'Opex_monthly_dollars', 'Monthly_assistance_dollars', 'fixed_fee_change'])
         df_tier_data = pd.DataFrame(data_repeated, columns=col_names)
         self.df_cashflow = pd.DataFrame({'Date': date_range})
         self.df_cashflow = pd.concat([self.df_cashflow, df_tier_data], axis=1)
-        self.df_cashflow.set_index('Date', inplace=True) # set index to date column
+        self.df_cashflow.set_index('Date', inplace=True)  # set index to date column
         
         # add updated columns with 'upd' at the end to dataframe with initial rates
         for rate in self.rate_types:
@@ -968,6 +1020,13 @@ class CASHFLOW_MODEL(Parameter):
         self.count_inf_plants = 0
         self.month = -1
 
+        # setup dataframes with original and updated water rates
+        self.setup_water_rate_dataframes()
+
+        # set up arrays with quant and irf increases
+        self.arr_quant_inc = np.zeros((self.num_months, self.num_tiers))
+        self.arr_irf_inc = np.zeros((self.num_months, self.num_tiers))
+        
         self.payback_period_yrs = self.model.parameters['planning_inf'].payback_period_yrs
 
 
@@ -986,6 +1045,7 @@ class CASHFLOW_MODEL(Parameter):
 
         # only run this part if we trigger building infrastructure in the current timestep
         if self.model.parameters['planning_inf'].get_value(scenario_index) == 1:
+            self.num_inf += 1
             # get dates
             date = pd.to_datetime(f"{timestep.year}-{timestep.month:02d}-{timestep.day:02d}")
             plan_date = date
@@ -1016,32 +1076,24 @@ class CASHFLOW_MODEL(Parameter):
             # get demand estimates by tier
             self.calcAvgDemand_by_Tier()
             
-            # update cashflow model table with theoretical rate increases
-            self.update_cashflow_with_rate_increase() # try this, otherwise, change the below code so we don't need to update the cashflow table twice
-            
-            # plot initial rate increases
-            self.plot_rates_over_time(False, 'theoretical rate increases')
-            
-            # get volumetric rate structure dataframe w/ and w/o rate increases
-            month = self.month + self.calcMonthsBetween(plan_date, deploy_date) + 1
-            if self.createDFs_WaterRates(month):
+            # calculate theoretical rate increases
+            self.arr_quant_inc = self.calc_rate_increase_v2('quant')
+            self.arr_irf_inc = self.calc_rate_increase_v2('IRF')
 
-                # get two instances of the household demand class (and calculate demands) with two different volumetric rates and everything else, the same
-                # what temperature, precip, AET data to use here? can use initialization data for now-- test sensitivity of this later
-                self.HHdata_orig = self.calcDemands_HH(timestep, self.df_volPrices_orig)
-                self.HHdata_upd = self.calcDemands_HH(timestep, self.df_volPrices_upd)
+            # update volumetric rate structure with theoretical demands
+            # try getting avg rates during infrastructure period... is this the best approach?
+            end_date = min(ramp_down_date, pd.to_datetime("2070-09-30"))
+            self.update_water_rate_dataframe(plan_date, end_date)
 
-                # merge the dataframes and find the avg percent decrease (for each tier)
-                self.calc_perc_decrease_by_tier()
+            # calculate updated demands with theoretical rates
+            self.calc_demands_with_updated_rates(timestep, True)
 
-                # apply the percent decreases to the average demands by tier
-                self.avg_demand_by_tier = self.avg_demand_by_tier * self.arr_frac_of_total
+            # recalculate rates
+            self.arr_quant_inc = self.calc_rate_increase_v2('quant')
+            self.arr_irf_inc = self.calc_rate_increase_v2('IRF')
 
-                # use updated demand estimates to get rate increases and add/edit cashflow model dataframe
-                self.update_cashflow_with_rate_increase()
-
-                # plot final rate increases
-                self.plot_rates_over_time(False, 'adjusted rate increases')
+            # update cashflow model and table
+            self.update_cashflow_with_rate_increase(True)
         
             # add to count of desal plants
             self.count_inf_plants += 1
@@ -1165,75 +1217,121 @@ class CASHFLOW_MODEL(Parameter):
 
         return self.avg_demand_by_tier[0]
     
-    
-    # function to calculate rate increases for 'quant' or 'IRF' charges
-    def calc_rate_increase(self, ratio_type):
-        if ratio_type != 'quant' and ratio_type != 'IRF':
-            #print('invalid ratio type input-- switch to quantity')
-            ratio_type = 'quant'
+        # function to calculate the percent change in demands with updated water rates
+    def calc_demands_with_updated_rates(self, timestep, TF_print):
+
+        # get two instances of the household demand class (and calculate demands) with two different volumetric rates and everything else, the same
+        # what temperature, precip, AET data to use here? can use initialization data for now-- test sensitivity of this later
+        self.HHdata_orig = self.calcDemands_HH(timestep, self.df_volPrices_orig)
+        self.HHdata_upd = self.calcDemands_HH(timestep, self.df_volPrices_upd)
+
+        # merge the dataframes and find the avg percent decrease (for each tier)
+        self.calc_perc_decrease_by_tier()
+
+        # apply the percent decreases to the average demands by tier
+        if TF_print:
+            print('avg fraction of total demands with rate increase: {}'.format(self.arr_frac_of_total))
+            print('avg demand by tier before multiplication: {}'.format(self.avg_demand_by_tier))
+        self.avg_demand_by_tier = self.avg_demand_by_tier * self.arr_frac_of_total
+        if TF_print:
+            print('avg demand by tier after multiplication: {}'.format(self.avg_demand_by_tier))
             
+        # function to calculate rate increases for 'quant' or 'IRF' charges
+    def calc_rate_increase_v2(self, ratio_type):
+        if ratio_type != 'quant' and ratio_type != 'IRF':
+            ratio_type = 'quant'
+
         if ratio_type == 'quant':
             col_name = 'Opex_monthly_dollars'
+            tier_ratios = self.tier_ratios_quant
         if ratio_type == 'IRF':
             col_name = 'IRF_revenue_needed'
-            
+            tier_ratios = self.tier_ratios_irf
+
         # get denominator
-        t2_param = getattr(self.model.parameters['cashflow_model'], f'T2_T1_{ratio_type}_ratio')
-        t3_param = getattr(self.model.parameters['cashflow_model'], f'T3_T1_{ratio_type}_ratio')
-        tier_ratios = np.array([1, t2_param, t3_param])
         total_use_denom = np.sum(tier_ratios * self.model.parameters['cashflow_model'].avg_demand_by_tier)
+        print('total use denom in calc_rate_increase function in CASHFLOW_MODEL: {}'.format(total_use_denom))
+
+        # get array of zeros
+        inc_zeros = np.zeros((self.month+1, self.num_tiers))
+        print('size of zeros (months that have already passed): ', inc_zeros.shape)
+
+        # get portion of cashflow model to update
+        df_cashflow_update = self.model.parameters['cashflow_model'].df_cashflow.iloc[self.month+1:][col_name]
+        print('size of non-zeros (future months): ', df_cashflow_update.shape)
 
         # get tier 1 increase
-        inc_t1 = self.model.parameters['cashflow_model'].df_cashflow[col_name].values / total_use_denom
+        inc_t1 = df_cashflow_update / total_use_denom
 
-        # get tiers 2 and 3 increase
-        inc_t2 = inc_t1 * t2_param
-        inc_t3 = inc_t1 * t3_param
-        
+        # put tier increases together into array
+        inc_nonzeros = np.zeros((len(inc_t1), self.num_tiers))
+        for i in range(self.num_tiers):
+            inc_nonzeros[:, i] = inc_t1 * tier_ratios[i]
+
         # concatenate arrays
-        inc_all = np.column_stack((inc_t1, inc_t2, inc_t3))
-        return inc_all
-    
-    # function to call the function calculating the rate increases, and then update the '_upd' columns of the dataframe
-    def update_cashflow_with_rate_increase(self):
-        
-        # create a backup copy of the df
-        col_names = []
-        for t in np.arange(1, self.num_tiers+1):
-            name = 'Quant_T' + str(t) + '_upd'
-            col_names.append(name)
-            
-        for t in np.arange(1, self.num_tiers+1):
-            name = 'IRF_T' + str(t) + '_upd'
-            col_names.append(name)
-        
-        self.df_cashflow_backup = self.df_cashflow[col_names]
-        
-        # call calc_rate_increase() function
-        Quant_inc = self.calc_rate_increase('quant')
-        IRF_inc = self.calc_rate_increase('IRF')
-        
-        # Store the arrays in a list
-        self.array_list = [Quant_inc, IRF_inc]
+        inc_all = np.row_stack((inc_zeros, inc_nonzeros))
+        print('size of all: ', inc_all.shape)
+        print('updated rates for {}: {}'.format(ratio_type, inc_all[inc_all > 0]))
 
+        return inc_all
+
+
+    # function to update the '_upd' columns of the dataframe
+    def update_cashflow_with_rate_increase(self, TF_add_to_df):
+
+        # create a backup of the ORIGINAL baseline only once
+        if not hasattr(self, 'df_cashflow_baseline'):
+            # Keep an immutable copy of the original rates (before any infra)
+            col_names = []
+            for t in range(1, self.num_tiers + 1):
+                col_names.append(f"Quant_T{t}")
+            for t in range(1, self.num_tiers + 1):
+                col_names.append(f"IRF_T{t}")
+            # store baseline (these are the original columns without "_upd")
+            self.df_cashflow_baseline = self.df_cashflow[col_names].copy()
+
+        # create a backup copy of the df
+        # backup the current _upd columns for plotting comparisons (if desired)
+        col_upd = []
+        for t in range(1, self.num_tiers + 1):
+            col_upd.append(f"Quant_T{t}_upd")
+        for t in range(1, self.num_tiers + 1):
+            col_upd.append(f"IRF_T{t}_upd")
+        self.df_cashflow_backup = self.df_cashflow[col_upd].copy()
+
+        # Store the arrays in a list for get_array
+        self.array_list = [self.arr_quant_inc, self.arr_irf_inc]
         # Create a dictionary to map names to list indices
         self.array_index_map = {
             'Quant_inc': 0,
             'IRF_inc': 1
         }
-        
+
+        # If this is the first infra event, initialize *_upd columns from baseline
+        first_inf = (self.count_inf_plants == 0)
         for rate in self.rate_types:
-            for t in range(1, self.num_tiers+1):
-                orig_name = rate + '_T' + str(t)
-                upd_name = orig_name + '_upd'
-                
-                # add/edit column in cashflow model dataframe
-                arr_name = rate + '_inc'
-                rate_inc = self.get_array(arr_name)[:,t-1]
-                self.df_cashflow[upd_name] = self.df_cashflow[orig_name] + rate_inc.flatten()
+            for t in range(1, self.num_tiers + 1):
+                orig_name = f"{rate}_T{t}"
+                upd_name = orig_name + "_upd"
+
+                rate_inc = self.get_array(rate + '_inc')[:, t - 1].flatten()
+
+                if upd_name not in self.df_cashflow.columns:
+                    self.df_cashflow[upd_name] = self.df_cashflow[orig_name].copy()
+                    # accumulate
+                # update the values starting the first non-zero value
+                idx = np.argmax(rate_inc != 0)
+                self.df_cashflow.loc[self.df_cashflow.index[idx:], upd_name] = self.df_cashflow.loc[
+                                                                                   self.df_cashflow.index[
+                                                                                   idx:], orig_name] + rate_inc[
+                                                                                                       idx:]
+
+                # also optionally keep per-infra increment column for audit / debugging
+                if TF_add_to_df:
+                    col_inc_name = f"{upd_name}_inc_inf{self.num_inf}"
+                    self.df_cashflow[col_inc_name] = rate_inc
             
     
-
     # Function to dynamically select array
     def get_array(self, array_name):
         """
@@ -1251,46 +1349,75 @@ class CASHFLOW_MODEL(Parameter):
         else:
             raise ValueError(f"Array '{array_name}' not found. Available options are: {list(array_index_map.keys())}")
 
-    # Function to create dataframes for original and updated water rates
-    def createDFs_WaterRates(self, month):
 
-        # check if the month exists in the simulation-- if it doesn't, then use the same rates
-        if month >= self.num_months:
-            return 0
+    # Function to set up dataframes for original and updated water rates- run in __init__ function
+    def setup_water_rate_dataframes(self):
 
+        # set up dataframes
         col_names = ['tiers', 'cutoff', 'quant_price', 'irf_price', 'price']
         self.df_volPrices_orig = pd.DataFrame(np.zeros((self.num_tiers, len(col_names))), columns=col_names)
         self.df_volPrices_upd = pd.DataFrame(np.zeros((self.num_tiers, len(col_names))), columns=col_names)
 
-        for t in np.arange(1, self.num_tiers+1):
-            #print('tier = ', t)
-    
+        for t in np.arange(1, self.num_tiers + 1):
+
             # update tiers
-            self.df_volPrices_orig.loc[t-1, 'tiers'] = t
-            self.df_volPrices_upd.loc[t-1, 'tiers'] = t
-    
+            self.df_volPrices_orig.loc[t - 1, 'tiers'] = t
+            self.df_volPrices_upd.loc[t - 1, 'tiers'] = t
+
             # update cutoff
             col_name = 'UpperBound_T' + str(t)
-            self.df_volPrices_orig.loc[t-1, 'cutoff'] = self.model.parameters['cashflow_model'].df_cashflow[col_name].iloc[month]
-            self.df_volPrices_upd.loc[t-1, 'cutoff'] = self.model.parameters['cashflow_model'].df_cashflow[col_name].iloc[month]
+            self.df_volPrices_orig.loc[t - 1, 'cutoff'] = \
+                self.df_cashflow[col_name].iloc[0]
+            self.df_volPrices_upd.loc[t - 1, 'cutoff'] = \
+                self.df_cashflow[col_name].iloc[0]
 
-            # update quant price
+            # update quant price-
             col_name = 'Quant_T' + str(t)
-            self.df_volPrices_orig.loc[t-1, 'quant_price'] = self.model.parameters['cashflow_model'].df_cashflow[col_name].iloc[month]
-            col_name = col_name + '_upd'
-            self.df_volPrices_upd.loc[t-1, 'quant_price'] = self.model.parameters['cashflow_model'].df_cashflow[col_name].iloc[month]
+            self.df_volPrices_orig.loc[t - 1, 'quant_price'] = \
+                self.df_cashflow[col_name].iloc[0]
+            self.df_volPrices_upd.loc[t - 1, 'quant_price'] = \
+                self.df_cashflow[col_name].iloc[0]
 
             # update irf price
             col_name = 'IRF_T' + str(t)
-            self.df_volPrices_orig.loc[t-1, 'irf_price'] = self.model.parameters['cashflow_model'].df_cashflow[col_name].iloc[month]
-            col_name = col_name + '_upd'
-            self.df_volPrices_upd.loc[t-1, 'irf_price'] = self.model.parameters['cashflow_model'].df_cashflow[col_name].iloc[month]
+            self.df_volPrices_orig.loc[t - 1, 'irf_price'] = \
+                self.df_cashflow[col_name].iloc[0]
+            self.df_volPrices_upd.loc[t - 1, 'irf_price'] = \
+                self.df_cashflow[col_name].iloc[0]
 
         # update marginal prices
-        self.df_volPrices_orig.loc[:,'price'] = self.df_volPrices_orig['quant_price'] + self.df_volPrices_orig['irf_price'] + self.fee_rate_stabilization_dollar_per_ccf
-        self.df_volPrices_upd.loc[:,'price'] = self.df_volPrices_upd['quant_price'] + self.df_volPrices_upd['irf_price'] + self.fee_rate_stabilization_dollar_per_ccf
+        self.df_volPrices_orig.loc[:, 'price'] = self.df_volPrices_orig['quant_price'] + self.df_volPrices_orig[
+            'irf_price'] + self.fee_rate_stabilization_dollar_per_ccf
+        self.df_volPrices_upd.loc[:, 'price'] = self.df_volPrices_upd['quant_price'] + self.df_volPrices_upd[
+            'irf_price'] + self.fee_rate_stabilization_dollar_per_ccf
 
+        print('original df: ', self.df_volPrices_orig)
+        print('updated df: ', self.df_volPrices_upd)
         return 1
+
+    # function to update the dataframe with new water rates
+    def update_water_rate_dataframe(self, plan_date, end_date):
+
+        for t in np.arange(1, self.num_tiers + 1):
+            # update quant price-
+            col_name = 'Quant_T' + str(t)  # + '_upd'
+            self.df_volPrices_upd.loc[t - 1, 'quant_price'] = self.df_cashflow.loc[plan_date:end_date,
+                                                              col_name].mean() + \
+                                                              max(self.arr_quant_inc[:, t - 1])
+
+            # update irf price
+            col_name = 'IRF_T' + str(t)  # + '_upd'
+            self.df_volPrices_upd.loc[t - 1, 'irf_price'] = self.df_cashflow.loc[plan_date:end_date,
+                                                            col_name].mean() + \
+                                                            max(self.arr_irf_inc[:, t - 1])
+
+        # update marginal prices
+        self.df_volPrices_upd.loc[:, 'price'] = self.df_volPrices_upd['quant_price'] + self.df_volPrices_upd[
+            'irf_price'] + self.fee_rate_stabilization_dollar_per_ccf
+
+        print('updated df: ', self.df_volPrices_upd)
+        return 1
+
     
     # Function to get the timestep for testing of calcDemands_HH() function
     def get_timestep(self, timestep):
@@ -1300,8 +1427,9 @@ class CASHFLOW_MODEL(Parameter):
     # can use this function for both sets of rates
     def calcDemands_HH(self, timestep, df_vol):
         self.curtail = 0 # switch this so not hard coded
-        HHdemand = householdDemand(df_vol, self.model.parameters['water_rate_structure'].df_fixedFees, timestep.month, timestep.year, self.curtail) # try not inputing AET, temp, precip and see if they initialize correctly
-            
+        HHdemand = self.model.parameters['santa_cruz_demand_MGD'].HHdemand
+        HHdemand.update_hh_data(df_vol, self.model.parameters['water_rate_structure'].df_fixedFees, timestep.month, timestep.year, self.curtail)
+
         # calculate the total demand across Santa Cruz
         HHdemand.calcQ()
         
@@ -1309,7 +1437,8 @@ class CASHFLOW_MODEL(Parameter):
     
     # Function to calculate percent decreases in demands by tier
     def calc_perc_decrease_by_tier(self):
-
+        
+        #self.HHdata_orig
         col_names = ['account', 'demand', 'tier', 'marg_price']
         
         # merge HHdemand data dataframes-- future to do: put a check in here to make sure both dataframes exist
@@ -1320,6 +1449,7 @@ class CASHFLOW_MODEL(Parameter):
         # calculate demand difference and percent difference
         merged_df['demand_diff'] = merged_df['demand_upd'] - merged_df['demand_orig']
         merged_df['demand_perc_change'] = merged_df['demand_diff'] / merged_df['demand_orig'] * 100
+        #print(merged_df)
 
         # get average of demand percent change by original tier
         self.arr_frac_of_total = np.zeros(self.num_tiers)
@@ -1328,7 +1458,6 @@ class CASHFLOW_MODEL(Parameter):
             filtered_df = merged_df[criteria]
             mean_demand = filtered_df['demand_diff'].mean()
             mean_perc = filtered_df['demand_perc_change'].mean()
-            #print('count=', filtered_df.shape[0], ', mean demand diff=', mean_demand, ', mean perc diff=', mean_perc)
             self.arr_frac_of_total[t-1] = mean_perc/100+1
             
     def plot_rates_over_time(self, boolean_TF, title):
@@ -1337,7 +1466,6 @@ class CASHFLOW_MODEL(Parameter):
             fig, axs = plt.subplots(1, 2, figsize=(10, 4))
             
             for t in np.arange(1, self.num_tiers+1):
-
                 # Quantity plot
                 label_orig = 'Quant_T' + str(t)
                 col_name_upd = label_orig + '_upd'
@@ -1355,7 +1483,6 @@ class CASHFLOW_MODEL(Parameter):
             axs[1].set_title('IRF vol charges comparison')
             fig.suptitle(title)
             plt.show()
-
 
     @classmethod
     def load(cls, model, data):
