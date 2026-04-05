@@ -16,7 +16,7 @@ print('import packages')
 
 
 #%% Import inf count and average assistance cost- modcool
-filepath = '/Volumes/OneTouch/CAPs_Results/Results_updated_Oct2025/'
+filepath = '../../results/CAPs_Results/'
 real_All = [1270, 1956, 1987, 2770, 3449, 3515, 3574, 4211, 4373, 4937]
 dT_All = [0, 1]
 dP_All = [100]
@@ -42,7 +42,7 @@ print(df_inf_count)
 
 
 #%% Import inf count and average assistance cost- dryhot
-filepath = '/Volumes/OneTouch/CAPs_Results/Results_updated_Oct2025/'
+filepath = '../../results/CAPs_Results/'
 real_All = [1270, 1956, 1987, 2770, 3449, 3515, 3574, 4211, 4373, 4937]
 dT_All = [4, 5]
 dP_All = [80]
@@ -82,5 +82,5 @@ plt.ylim([0, y_max])
 plt.yticks(range(0, y_max+1, 2), fontsize=11)
 plt.title('Scatter plot comparing average annual assistance \ncosts and amount of infrastructure deployed', fontsize=12)
 
-plt.savefig('../../outputs/Figures/SI/SI_Scatter_Support_Fig3.png', dpi=300, bbox_inches='tight') # transparent=True
+plt.savefig('../../outputs/Figures/SI/SI_Scatter_Support.png', dpi=300, bbox_inches='tight') # transparent=True
 plt.show()

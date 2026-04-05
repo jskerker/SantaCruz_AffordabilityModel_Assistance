@@ -17,18 +17,14 @@ import warnings
 warnings.filterwarnings("ignore")
 import processing_functions_March2025 as pf
 from matplotlib.patches import Patch
-sys.path.append('~/Santa_Cruz_WRM_Assistance/scripts')
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from Setup_SCWSM_Option_Analysis_CST import simSetup
 print('import packages')
 
 #%% define functions
 def process_monthly_data_to_annual(df):
-    # remove Water_Year 2021 data
-    # df = df[df['Water_Year'] != 2021]
 
     # aggregate data to annual
-    # df_annual = df.groupby('Water_Year', as_index=False)[['tot_assist_income', 'tot_assist_fixedDollar', 'tot_assist_fee', 'tot_assist_vol']].sum()
     df_annual = df.groupby('Water_Year').agg({
         'tot_assist_income': 'sum',
         'tot_assist_fixedDollar_$50': 'sum',
@@ -42,17 +38,15 @@ def process_monthly_data_to_annual(df):
     return df_annual  # function to process monthly data to annual (like above) but with the added step of only including dates with the max rates
 
 
-def process_monthly_data_to_annual_dates_filter(filepath, combo, name_add):
-    df_cashflow, max_rates, df_max_rate_dates = pf.get_max_rate_dates(filepath, combo, name_add)
-    # print(df_max_rate_dates)
+def process_monthly_data_to_annual_dates_filter(filepath, combo, name_add, ie):
+    df_cashflow, max_rates, df_max_rate_dates = pf.get_max_rate_dates_IE2(filepath, combo, name_add, ie)
     df = pd.read_csv(
-        filepath + 'df_monthly_assistance_{}P{}T{}_dCV{}_real{}_demand{}.csv'.format(name_add, combo[2], combo[1],
-                                                                                     combo[3], combo[0], combo[4]))
+        filepath + 'df_monthly_assistance_{}P{}T{}_dCV{}_real{}_demand{}_IE{}.csv'.format(name_add, combo[2], combo[1],
+                                                                                     combo[3], combo[0], combo[4], ie))
     df['Date'] = pd.to_datetime(df['Date'])
     df_filter = df[df['Date'].isin(df_max_rate_dates)]
     df['Water_Year'] = df['Date'].dt.year + (df['Date'].dt.month >= 10)
     df_annual = process_monthly_data_to_annual(df_filter)
-    # print(df_annual.head())
     df_annual = df_annual[df_annual['count'] == 12]
     df_annual['real'] = combo[0]
     df_annual['dT'] = combo[1]
@@ -61,32 +55,29 @@ def process_monthly_data_to_annual_dates_filter(filepath, combo, name_add):
 
 
 # function to process household assistance data with max date filtering
-def get_assisted_bill_sample_with_max_dates(filepath, combo, name_add, columns):
-    df_cashflow, max_rates, df_max_rate_dates = pf.get_max_rate_dates(filepath, combo, name_add)
+def get_assisted_bill_sample_with_max_dates(filepath, combo, name_add, ie, columns):
+    df_cashflow, max_rates, df_max_rate_dates = pf.get_max_rate_dates_IE2(filepath, combo, name_add, ie)
     # current conditions
     df = pd.read_parquet(
-        filepath + 'df_assisted_bill_{}P{}T{}_dCV{}_real{}_demand{}.parquet'.format(name_add, combo[2], combo[1],
-                                                                                    combo[3], combo[0], combo[4]),
+        filepath + 'df_assisted_bill_{}P{}T{}_dCV{}_real{}_demand{}_IE{}.parquet'.format(name_add, combo[2], combo[1],
+                                                                                    combo[3], combo[0], combo[4], ie),
         columns=columns)
     df['Date'] = pd.to_datetime(df['Date'])
     df_filter = df[df['Date'].isin(df_max_rate_dates)]
     df_filter = df_filter[df_filter['does_acct_get_assistance?'] > 0]
-    #if len(df_filter) >= 100000:
-    #    df_sample = df_filter.sample(n=100000, replace=False)
-    #else:
-    #    df_sample = df_filter.copy()  # If not enough rows, return all available data
     return df_filter
 
 
 #%% import annual cost data ###
 # set up parameters
-filepath = '../../results/CAPs_Results/'
+filepath = '~/../../../scratch/users/jskerker/Santa_Cruz_WRM_Assistance/Sims_IE/'
 real_All = [1270, 1956, 1987, 2770, 3449, 3515, 3574, 4211, 4373, 4937]
 dT_All = [0, 1]
 dP_All = [100]
 dCV_All = [1.0]
 demand_All = ['Baseline']
 combinations = list(itertools.product(real_All, dT_All, dP_All, dCV_All, demand_All))
+ie=2
 
 # initialize dataframes
 df_hist = pd.DataFrame()
@@ -96,15 +87,15 @@ df_cc = pd.DataFrame()
 # current conditions
 for combo in combinations:
     print(combo)
-    name_add = 'Baseline_NoInf_'
-    df_annual = process_monthly_data_to_annual_dates_filter(filepath, combo, name_add)
+    name_add = 'Baseline_IE_NoInf_'
+    df_annual = process_monthly_data_to_annual_dates_filter(filepath, combo, name_add, ie)
     df_hist = pd.concat([df_hist, df_annual], ignore_index=True)
 
 # mod, cool
 for combo in combinations:
     print(combo)
-    name_add = 'Baseline_'
-    df_annual = process_monthly_data_to_annual_dates_filter(filepath, combo, name_add)
+    name_add = 'Baseline_IE_'
+    df_annual = process_monthly_data_to_annual_dates_filter(filepath, combo, name_add, ie)
     df_modcool = pd.concat([df_modcool, df_annual], ignore_index=True)
 
 # dry, hot
@@ -116,14 +107,17 @@ combinations = list(itertools.product(real_All, dT_All, dP_All, dCV_All, demand_
 
 for combo in combinations:
     print(combo)
-    name_add = 'Baseline_'
-    df_annual = process_monthly_data_to_annual_dates_filter(filepath, combo, name_add)
+    name_add = 'Baseline_IE_'
+    df_annual = process_monthly_data_to_annual_dates_filter(filepath, combo, name_add, ie)
     df_cc = pd.concat([df_cc, df_annual], ignore_index=True)
 
 # add column for no assistance
 df_hist.insert(0, 'tot_assist_none', 0)
 df_modcool.insert(0, 'tot_assist_none', 0)
 df_cc.insert(0, 'tot_assist_none', 0)
+
+# reimport data
+
 
 #%% look at distributions of ARs- get data
 # import data
@@ -144,13 +138,13 @@ for combo in combinations:
     print(combo)
 
     # current conditions data
-    name_add = 'Baseline_NoInf_'
-    df_filter = get_assisted_bill_sample_with_max_dates(filepath, combo, name_add, columns)
+    name_add = 'Baseline_IE_NoInf_'
+    df_filter = get_assisted_bill_sample_with_max_dates(filepath, combo, name_add, ie, columns)
     df_hist_list.append(df_filter)
 
     # modcool data
-    name_add = 'Baseline_'
-    df_filter = get_assisted_bill_sample_with_max_dates(filepath, combo, name_add, columns)
+    name_add = 'Baseline_IE_'
+    df_filter = get_assisted_bill_sample_with_max_dates(filepath, combo, name_add, ie, columns)
     df_modcool_list.append(df_filter)
 
 # climate change
@@ -158,12 +152,12 @@ dT_All = [4, 5]
 dP_All = [80, 90]
 dCV_All = [1.2]
 combinations = list(itertools.product(real_All, dT_All, dP_All, dCV_All, demand_All))
-name_add = 'Baseline_'
+name_add = 'Baseline_IE_'
 for combo in combinations:
     print(combo)
 
     # current conditions data
-    df_filter = get_assisted_bill_sample_with_max_dates(filepath, combo, name_add, columns)
+    df_filter = get_assisted_bill_sample_with_max_dates(filepath, combo, name_add, ie, columns)
     df_cc_list.append(df_filter)
 
 # create dataframes from lists
@@ -171,7 +165,7 @@ df_hist_hh = pd.concat(df_hist_list, ignore_index=True)
 df_modcool_hh = pd.concat(df_modcool_list, ignore_index=True)
 df_cc_hh = pd.concat(df_cc_list, ignore_index=True)
 
-save data
+# save data
 df_hist_hh.to_csv(filepath + 'df_hist_hh_Fig6.csv')
 df_modcool_hh.to_csv(filepath + 'df_modcool_hh_Fig6.csv')
 df_cc_hh.to_csv(filepath + 'df_cc_hh_Fig6.csv')
@@ -197,14 +191,12 @@ df_modcool_filter = df_modcool.filter(like='tot_assist_', axis=1)
 df_cc_filter = df_cc.filter(like='tot_assist_', axis=1)
 list_dfs = [df_hist_filter / 1e6, df_modcool_filter / 1e6, df_cc_filter / 1e6]
 scenarios_list = ['Baseline', 'Moderate Climate \nwith Adaptation', 'Dry Climate \nwith Adaptation']
-# labels_list = ['Income', 'Fixed: \n$25', 'Fixed: \n$50', 'Fixed: \n$100', 'Fee: \n100%', 'Vol.: \n50%', 'Vol.: \n70%', 'Vol.: \n90%']
 labels_list = ['None', 'Income', 'Fixed: $50', 'Fixed: $100', 'Fee: 100%', 'Vol.: 55%', 'Vol.: 80%']
-colors = ['dodgerblue', 'olivedrab', 'olivedrab', 'maroon', 'gold', 'gold']
+colors = ['lightgray', 'dodgerblue', 'olivedrab', 'olivedrab', 'maroon', 'gold', 'gold']
 # loop through subplots and climate scenarios
 for i in range(3):
     box = axes_all[i].boxplot(list_dfs[i], showfliers=False, patch_artist=True, widths=wd)
     axes_all[i].set_xticklabels(labels_list, fontsize=ft, rotation=90)
-    # axes_all[i].set_xticklabels(['', '', '', '', '', ''])
     axes_all[i].set_ylim(0, 18)
     axes_all[i].set_yticks(np.arange(0, 19, 3))
     axes_all[i].set_yticklabels(np.arange(0, 19, 3), fontsize=ft)
@@ -220,6 +212,7 @@ ax00.set_ylabel('Annual Assistance ($M)', fontsize=ft + 1, fontweight='bold')
 # add custom legend
 # Custom Legend with Patches
 legend_patches = [
+    mpatches.Patch(facecolor='lightgray', edgecolor='black', label='None'),
     mpatches.Patch(facecolor='dodgerblue', edgecolor='black', label='Income'),
     mpatches.Patch(facecolor='olivedrab', edgecolor='black', label='Fixed'),
     mpatches.Patch(facecolor='maroon', edgecolor='black', label='Fee'),
@@ -239,18 +232,17 @@ ax11 = fig.add_subplot(gs[1, 1])
 ax12 = fig.add_subplot(gs[1, 2])
 axes_all_AR = [ax10, ax11, ax12]
 list_dfs = [df_hist_hh[cols], df_modcool_hh[cols], df_cc_hh[cols]]
-
 # loop through subplots and climate scenarios
 for i in range(3):
-    axes_all_AR[i].plot([0.5, 6.5], [2.5, 2.5], color='k', linewidth=1.5, linestyle='--')
+    axes_all_AR[i].plot([0.5, 7.5], [2.5, 2.5], color='k', linewidth=1.5, linestyle='--')
     box = axes_all_AR[i].boxplot(list_dfs[i], showfliers=False, patch_artist=True, widths=wd)
     axes_all_AR[i].set_xticklabels(labels_list, fontsize=ft, rotation=90)
     axes_all_AR[i].set_ylim(-0.5, 25)
     axes_all_AR[i].set_yticks(np.arange(0, 26, 5))
     axes_all_AR[i].set_yticklabels(np.arange(0, 26, 5), fontsize=ft)
     # axes_all_AR[i].set_title(scenarios_list[i], fontsize=10, fontweight='bold')
-    axes_all_AR[i].set_xlim(0.5, 6.5)
-    axes_all_AR[i].set_xlabel('Assistance Type', fontsize=ft + 1, fontweight='bold')
+    axes_all_AR[i].set_xlim(0.5, 7.5)
+    axes_all_AR[i].set_xlabel('Type of Assistance', fontsize=ft + 1, fontweight='bold')
 
     # Apply colors
     for patch, color in zip(box['boxes'], colors):
@@ -260,15 +252,38 @@ for i in range(3):
 ax10.set_ylabel('AR (% of bill / income)', fontsize=ft + 1, fontweight='bold')
 
 # add text labels
-y1 = 22.7
-y2 = 59.3
-ax12.text(-14.38, y2, 'a', fontsize=18, fontweight='bold')
-ax12.text(-6.88, y2, 'b', fontsize=18, fontweight='bold')
+y1 = 23.0
+y2 = 60.0
+ax12.text(-16.92, y2, 'a', fontsize=18, fontweight='bold')
+ax12.text(-8.15, y2-0.5, 'b', fontsize=18, fontweight='bold')
 ax12.text(0.62, y2, 'c', fontsize=18, fontweight='bold')
-ax12.text(-14.38, y1, 'd', fontsize=18, fontweight='bold')
-ax12.text(-6.88, y1, 'e', fontsize=18, fontweight='bold')
-ax12.text(0.62, y1, 'f', fontsize=18, fontweight='bold')
+ax12.text(-16.92, y1-0.5, 'd', fontsize=18, fontweight='bold')
+ax12.text(-8.15, y1, 'e', fontsize=18, fontweight='bold')
+ax12.text(0.62, y1-0.5, 'f', fontsize=18, fontweight='bold')
 
-plt.savefig('../../outputs/Figures/Paper_Figure6_boxplots_AssistancePolicies_03Nov2025.jpg',
+plt.savefig('../../outputs/Figures/Figure6_IE_boxplots_AssistancePolicies.jpg',
             bbox_inches='tight', dpi=300)
-plt.show()
+#plt.show()
+
+#%% print out statistics
+# get percentage of households below 2.5% AR- vol 80%
+print('Volumetric 80%: percentage of households above 2.5% AR \n')
+threshold = 2.5
+fraction_hist = (df_hist_hh['AR_assist_vol_80%'] > threshold).mean()
+fraction_modcool = (df_modcool_hh['AR_assist_vol_80%'] > threshold).mean()
+fraction_cc = (df_cc_hh['AR_assist_vol_80%'] > threshold).mean()
+print('historical: {}, modcool: {}, cc: {}'.format(fraction_hist, fraction_modcool, fraction_cc))
+
+print('\nFixed $100: percentage of households above 2.5% AR \n')
+threshold = 2.5
+fraction_hist = (df_hist_hh['AR_assist_fixedDollar_$100'] > threshold).mean()
+fraction_modcool = (df_modcool_hh['AR_assist_fixedDollar_$100'] > threshold).mean()
+fraction_cc = (df_cc_hh['AR_assist_fixedDollar_$100'] > threshold).mean()
+print('historical: {}, modcool: {}, cc: {}'.format(fraction_hist, fraction_modcool, fraction_cc))
+
+print('\nFixed $50: percentage of households above 2.5% AR \n')
+fraction_hist = (df_hist_hh['AR_assist_fixedDollar_$50'] > threshold).mean()
+fraction_modcool = (df_modcool_hh['AR_assist_fixedDollar_$50'] > threshold).mean()
+fraction_cc = (df_cc_hh['AR_assist_fixedDollar_$50'] > threshold).mean()
+print('historical: {}, modcool: {}, cc: {}'.format(fraction_hist, fraction_modcool, fraction_cc))
+

@@ -15,7 +15,6 @@ import os
 import sys
 import warnings
 warnings.filterwarnings("ignore")
-sys.path.append('/Users/jenniferskerker/Documents/GradSchool/Research/Equity/Model/Santa_Cruz_WRM_Assistance/scripts')
 from Setup_SCWSM_Option_Analysis_CST import simSetup
 import sqlite3
 import pickle
@@ -32,12 +31,9 @@ def pickleload(filename):
         obj = pickle.load(f)
 
     return obj
-def process_monthly_data_to_annual(df):
-    # remove Water_Year 2021 data
 
-    # aggregate data to annual
-    # df_annual = df.groupby('Water_Year', as_index=False)[['tot_assist_income', 'tot_assist_fixedDollar', 'tot_assist_fee', 'tot_assist_vol']].sum()
-    # df_annual = df.groupby('Water_Year')[['tot_assist_income', 'tot_assist_fixedDollar', 'tot_assist_fee', 'tot_assist_vol']].sum()
+# function to process monthly data to annual
+def process_monthly_data_to_annual(df):
 
     df_annual_v2 = df.groupby('Water_Year').agg({
         'tot_assist_income': 'sum',
@@ -52,7 +48,7 @@ def process_monthly_data_to_annual(df):
 
     return df_annual_v2
 
-
+# function to process monthly data to annual with added date filter step
 def process_monthly_data_to_annual_dates_filter(filepath, combo, name_add):
     df_cashflow, max_rates, df_max_rate_dates = pf.get_max_rate_dates(filepath, combo, name_add)
     # print(df_max_rate_dates)
@@ -73,8 +69,7 @@ print('import packages & define functions')
 
 #%% Import cost data
 ## Question 3: How much will this cost? ##
-# import data
-filepath = '/Volumes/OneTouch/CAPs_Results/Results_Baseline_Oct2025/'
+filepath = '../../results/CAPs_Results/'
 real_All = [1270, 1956, 1987, 2770, 3449, 3515, 3574, 4211, 4373, 4937]
 dT_All = [0, 1]
 dP_All = [100]
@@ -135,16 +130,16 @@ print(avg)
 
 #%% Import water billing data
 # set working directory
-os.chdir('/Users/jenniferskerker/Documents/GradSchool/Research/Equity/Model/DCC_Demand_Estimation')
+os.chdir('../../../DCC_Demand_Estimation')
 
 # define columns to import
-csvpath = '/Users/jenniferskerker/Documents/GradSchool/Research/Equity/Model/DCC_Demand_Estimation/data/Database_Column_Description_waterbilling.csv'
+csvpath = '../../../DCC_Demand_Estimation/data/Database_Column_Description_waterbilling.csv' # file not included in Github repo
 feat_descript = pd.read_csv(csvpath, header=0)
 # cols = np.array(feat_descript['Column Header'])  # array of feature names
 cols = ['restype', 'edate', 'eyr', 'bill_length', 'bill_tot', 'pen']
 
 # connect/create a databse
-conn = sqlite3.connect('./data/waterbilldata_clean_V2.db')
+conn = sqlite3.connect('./data/waterbilldata_clean_V2.db') # database not included in Github repo
 
 # Create a cursor
 c = conn.cursor()

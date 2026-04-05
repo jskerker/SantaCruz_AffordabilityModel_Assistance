@@ -1,15 +1,10 @@
-#%% Import packages and define functions
+#%% import packages and define functions
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 import itertools
-import time
-import csv
 import matplotlib.gridspec as gridspec
-from statsmodels.distributions.empirical_distribution import ECDF
-from datetime import datetime
 import warnings
-
 warnings.filterwarnings("ignore")
 import os
 import sys
@@ -18,17 +13,16 @@ import matplotlib.patches as mpatches
 import matplotlib.dates as mdates
 import warnings
 warnings.filterwarnings("ignore")
-from Setup_SCWSM_Option_Analysis_CST import simSetup
-
+sys.path.append('../scripts')
 
 # function to process monthly data with filtering for the max rates
-def process_monthly_with_dates_filter(filepath, combo, name_add):
+def process_monthly_with_dates_filter(filepath, combo, name_add, ie):
     column_names = ['Date', 'tot_assist_income', 'Count']
-    df_cashflow, max_rates, df_max_rate_dates = pf.get_max_rate_dates(filepath, combo, name_add)
+    df_cashflow, max_rates, df_max_rate_dates = pf.get_max_rate_dates_IE2(filepath, combo, name_add, ie)
     # print(df_max_rate_dates)
     df = pd.read_csv(
-        filepath + 'df_monthly_assistance_{}P{}T{}_dCV{}_real{}_demand{}.csv'.format(name_add, combo[2], combo[1],
-                                                                                     combo[3], combo[0], combo[4]))
+        filepath + 'df_monthly_assistance_{}P{}T{}_dCV{}_real{}_demand{}_IE{}.csv'.format(name_add, combo[2], combo[1],
+                                                                                     combo[3], combo[0], combo[4], ie))
     df = df[column_names]
     df['Date'] = pd.to_datetime(df['Date'])
     df_filter = df[df['Date'].isin(df_max_rate_dates)]
@@ -57,15 +51,13 @@ def get_statistic_from_series(series, stat):
 def get_closest_row_from_data(df_cost, col_name, stat_name):
     # get relevant statistic
     stat = get_statistic_from_series(df_cost[col_name], stat_name)
-    # print('stat from function: {}'.format(stat))
     # find row where col value is closest to avg
     closest_row_idx = (df_cost[col_name] - stat).abs().idxmin()
 
     return df_cost.loc[closest_row_idx]  # retrieve full row
 
-
 # function to get household counts by 4 income groups for hhs requiring/not assistance
-def get_hh_counts_by_income_group(filepath, df_avg, name_add):
+def get_hh_counts_by_income_group(filepath, df_avg, name_add, ie):
     columns = ['Date', 'account', 'does_acct_get_assistance?']
     # 2. load household assistance data for that scenario and realization
     real = df_avg.loc['real']
@@ -74,8 +66,8 @@ def get_hh_counts_by_income_group(filepath, df_avg, name_add):
     dCV = df_avg.loc['dCV']
     demand = df_avg.loc['demand']
     df_hh = pd.read_parquet(
-        filepath + 'df_assisted_bill_{}P{}T{}_dCV{}_real{}_demand{}.parquet'.format(name_add, dP, dT, dCV, real,
-                                                                                    demand), columns=columns)
+        filepath + 'df_assisted_bill_{}P{}T{}_dCV{}_real{}_demand{}_IE{}.parquet'.format(name_add, dP, dT, dCV, real,
+                                                                                    demand, ie), columns=columns)
     df_hh['Date'] = pd.to_datetime(df_hh['Date'])
 
     # 3. filter data by date
@@ -84,9 +76,9 @@ def get_hh_counts_by_income_group(filepath, df_avg, name_add):
 
     # 4. Merge with income data
     # including: a) create 4 income groups
-    df_income = pd.read_csv('../../data/dcc_data/resampled_income_data_30Nov2024.csv')
-    df_income = df_income[['account', 'map_inc_1']]
-    df_income['mapped_income'] = df_income['map_inc_1']
+    df_income = pd.read_csv('../../data/dcc_data/resampled_income_data.csv')
+    df_income = df_income[['account', 'map_inc_{}'.format(ie)]]
+    df_income['mapped_income'] = df_income['map_inc_{}'.format(ie)]
 
     # Define conditions
     conditions = [
@@ -98,10 +90,13 @@ def get_hh_counts_by_income_group(filepath, df_avg, name_add):
     # Define corresponding labels
     labels = ['Low', 'Below MHI', 'MHI to High', 'High']
     # Assign values based on conditions
-    df_income['income_group'] = np.select(conditions, labels)
+    df_income['income_group'] = np.select(conditions, labels, default='Unassigned')
+
+    # how many unassigned values are there?
+    count = (df_income["income_group"] == 'Unassigned').sum()
+    print('how many unassigned values are there? {}'.format(count))
     # merge dataframes
     df_merge = pd.merge(df_hh_filter, df_income, on='account', how='left')
-    # print(df_merge)
 
     # 5. figure out how to subset data by if assistance needed and income group
     df_counts = df_merge.groupby(['does_acct_get_assistance?', 'income_group']).size().unstack(fill_value=0)
@@ -115,8 +110,8 @@ def get_hh_counts_by_income_group(filepath, df_avg, name_add):
     return arr_col, df_merge, [real, dT, dP, dCV, demand]
 
 
-# function to extract the data from that month
-def get_accts_assistance_for_baseline(df_stat, filepath, name_add, dP, dCV, demand):
+# for each scenario, extract the data from that month
+def get_accts_assistance_for_baseline(df_stat, filepath, name_add, dP, dCV, demand, ie):
     columns = ['Date', 'account', 'totalWaterCosts', 'AR', 'does_acct_get_assistance?', 'totalWaterCostsAssist_income',
                'unafford_bill_difference', 'AR_assist_income']
 
@@ -125,33 +120,29 @@ def get_accts_assistance_for_baseline(df_stat, filepath, name_add, dP, dCV, dema
     dT = df_stat.loc['dT']
     date = df_stat.loc['Date']
     df_hh = pd.read_parquet(
-        filepath + 'df_assisted_bill_{}P{}T{}_dCV{}_real{}_demand{}.parquet'.format(name_add, dP, dT, dCV, real,
-                                                                                    demand), columns=columns)  #
+        filepath + 'df_assisted_bill_{}P{}T{}_dCV{}_real{}_demand{}_IE{}.parquet'.format(name_add, dP, dT, dCV, real,
+                                                                                    demand, ie), columns=columns)  #
     df_hh_filter = df_hh[df_hh['Date'] == date]
 
     # get amount of assistance
     assistance = df_hh_filter['unafford_bill_difference'].sum()
-    # print(np.shape(df_hist_hh_filter))
-    # print(df_hh_filter)
 
     # get accounts getting assistance
     df_accts = df_hh_filter.loc[df_hh_filter['does_acct_get_assistance?'] == 1, 'account']
     return assistance, df_accts
 
-print('import packages & define functions')
+print('import packages')
 
-
-#%% Load cost data
-
+#%% load cost data
 # import all monthly assistance data and filter by periods with max rate dates
-filepath = '../../results/CAPs_Results/'
+filepath = '../../../../../../scratch/users/jskerker/Santa_Cruz_WRM_Assistance/Sims_IE/'
 real_All = [1270, 1956, 1987, 2770, 3449, 3515, 3574, 4211, 4373, 4937]
 dT_All = [0, 1]
 dP_All = [100]
 dCV_All = [1.0]
 demand_All = ['Baseline']
 combinations = list(itertools.product(real_All, dT_All, dP_All, dCV_All, demand_All))
-
+ie = 2
 df_hist_cost = pd.DataFrame()
 df_modcool_cost = pd.DataFrame()
 df_cc_cost = pd.DataFrame()
@@ -160,13 +151,13 @@ for combo in combinations:
     print(combo)
 
     # current conditions data
-    name_add = 'Baseline_NoInf_'
-    df_filter = process_monthly_with_dates_filter(filepath, combo, name_add)
+    name_add = 'Baseline_IE_NoInf_'
+    df_filter = process_monthly_with_dates_filter(filepath, combo, name_add, ie)
     df_hist_cost = pd.concat([df_hist_cost, df_filter], ignore_index=True)
 
     # modcool data
-    name_add = 'Baseline_'
-    df_filter = process_monthly_with_dates_filter(filepath, combo, name_add)
+    name_add = 'Baseline_IE_'
+    df_filter = process_monthly_with_dates_filter(filepath, combo, name_add, ie)
     df_modcool_cost = pd.concat([df_modcool_cost, df_filter], ignore_index=True)
 
 # climate change
@@ -179,16 +170,14 @@ for combo in combinations:
     print(combo)
 
     # dry, hot
-    df_filter = process_monthly_with_dates_filter(filepath, combo, name_add)
+    df_filter = process_monthly_with_dates_filter(filepath, combo, name_add, ie)
     df_cc_cost = pd.concat([df_cc_cost, df_filter], ignore_index=True)
 
-
-#%% Get data for bar plots
-# try getting data for bar plot
-filepath = '/Volumes/OneTouch/CAPs_Results/Results_Baseline_Oct2025/'
+#%% get data for bar plots
 # 1. Average: get stastic values and corresponding rows for all 3 scenarios
 col_name = 'tot_assist_income'
 stat_name = 'mean'
+
 df_hist_avg = get_closest_row_from_data(df_hist_cost, col_name, stat_name)
 df_modcool_avg = get_closest_row_from_data(df_modcool_cost, col_name, stat_name)
 df_cc_avg = get_closest_row_from_data(df_cc_cost, col_name, stat_name)
@@ -198,24 +187,24 @@ print('\n')
 
 #print(df_hist_avg)
 # baseline
-name_add = 'Baseline_NoInf_'
-arr_hist, df_merge_hist, list_combo = get_hh_counts_by_income_group(filepath, df_hist_avg, name_add)
+name_add = 'Baseline_IE_NoInf_'
+arr_hist, df_merge_hist, list_combo = get_hh_counts_by_income_group(filepath, df_hist_avg, name_add, ie)
 
 # modcool
-name_add = 'Baseline_'
-arr_modcool, df_merge_modcool, list_combo_mc = get_hh_counts_by_income_group(filepath, df_modcool_avg, name_add)
+name_add = 'Baseline_IE_'
+arr_modcool, df_merge_modcool, list_combo_mc = get_hh_counts_by_income_group(filepath, df_modcool_avg, name_add, ie)
 
 # dry
-name_add = 'Baseline_'
-arr_cc, df_merge_cc, list_combo_cc = get_hh_counts_by_income_group(filepath, df_cc_avg, name_add)
+name_add = 'Baseline_IE_'
+arr_cc, df_merge_cc, list_combo_cc = get_hh_counts_by_income_group(filepath, df_cc_avg, name_add, ie)
 
+#print(arr_cc)
 arr_combined = np.hstack((arr_hist, arr_modcool, arr_cc))
 
-
-#%% Import household assistance data for dry realization used above
+#%% import household assistance data for dry realization used above
 columns = ['Date', 'account', 'does_acct_get_assistance?']
 df_avg = df_modcool_avg.copy()
-
+print('dataframe with average values: \n', df_avg)
 # 2. load household assistance data for that scenario and realization
 real = df_avg.loc['real']
 dT = df_avg.loc['dT']
@@ -223,15 +212,15 @@ dP = df_avg.loc['dP']
 dCV = df_avg.loc['dCV']
 demand = df_avg.loc['demand']
 df_hh = pd.read_parquet(
-    filepath + 'df_assisted_bill_{}P{}T{}_dCV{}_real{}_demand{}.parquet'.format(name_add, dP, dT, dCV, real, demand),
+    filepath + 'df_assisted_bill_{}P{}T{}_dCV{}_real{}_demand{}_IE{}.parquet'.format(name_add, dP, dT, dCV, real, demand, ie),
     columns=columns)
 df_hh['Date'] = pd.to_datetime(df_hh['Date'])
 
 # 4. Merge with income data
 # including: a) create 4 income groups
-df_income = pd.read_csv('../../data/dcc_data/resampled_income_data_30Nov2024.csv')
-df_income = df_income[['account', 'map_inc_1']]
-df_income['mapped_income'] = df_income['map_inc_1']
+df_income = pd.read_csv('../../data/dcc_data/resampled_income_data.csv')
+df_income = df_income[['account', 'map_inc_{}'.format(ie)]]
+df_income['mapped_income'] = df_income['map_inc_{}'.format(ie)]
 
 # Define conditions
 conditions = [
@@ -243,7 +232,9 @@ conditions = [
 # Define corresponding labels
 labels = ['Low', 'Below MHI', 'MHI to High', 'High']
 # Assign values based on conditions
-df_income['income_group'] = np.select(conditions, labels)
+df_income['income_group'] = np.select(conditions, labels, default='Unassigned')
+count = (df_income["income_group"] == 'Unassigned').sum()
+print('how many unassigned values are there? {}'.format(count))
 # merge dataframes
 df_merge = pd.merge(df_hh, df_income, on='account', how='left')
 
@@ -256,11 +247,10 @@ df_counts = df_assistance.groupby(["Date", "income_group"]).size().reset_index(n
 print(df_counts)
 
 # import df time tracker dataframe
-df_time_tracker = pd.read_csv(filepath + 'df_time_tracker_{}P{}T{}_dCV{}_real{}_demand{}.csv'.format(name_add, dP, dT, dCV, real, demand))
+df_time_tracker = pd.read_csv(filepath + 'df_time_tracker_{}P{}T{}_dCV{}_real{}_demand{}_IE{}.csv'.format(name_add, dP, dT, dCV, real, demand, ie))
 print(df_time_tracker.loc[0, 'deploy_date'])
 
-
-#%% Create figure
+#%% create figure
 # create updated bar plot
 custom_colors = ['dodgerblue', 'gold', 'olivedrab', 'salmon', 'dodgerblue', 'gold', 'olivedrab', 'salmon']
 # Define hatching patterns (apply to selected bars)
@@ -305,6 +295,7 @@ ax1.stackplot(df_pivot.index, df_pivot.T, labels=df_pivot.columns, alpha=1.0, co
 
 # add line for deploy date
 deploy_date = pd.to_datetime(df_time_tracker.loc[0, 'deploy_date'])
+deploy_year = deploy_date.year
 ax1.plot([deploy_date, deploy_date], [0, 8000], linestyle='--', color='black', linewidth=1.8)
 
 # Formatting
@@ -316,8 +307,7 @@ ax1.xaxis.set_major_locator(mdates.YearLocator(1))  # Change to 2 for every othe
 ax1.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
 # Adjust tick label size and rotation
 ax1.tick_params(axis="x", labelsize=ft+1, rotation=0)
-#ax1.set_xticklabels
-ax1.set_xlim(pd.to_datetime('2046-01-01'), pd.to_datetime('2052-01-01'))
+ax1.set_xlim(pd.to_datetime('{}-01-01'.format(deploy_year-2)), pd.to_datetime('{}-01-01'.format(deploy_year+4)))
 ax1.set_ylim(0, 8000)
 ax1.set_yticks(np.arange(0, 8001, 2000))
 ax1.set_yticklabels(np.arange(0, 8001, 2000), fontsize=ft)
@@ -336,12 +326,33 @@ legend_patches = [
 ax1.legend(handles=legend_patches, loc="lower right", bbox_to_anchor=(1.0, 0.0), fontsize=ft-0.5)
 
 # text
-ax1.text(pd.to_datetime('2048-12-01'), 7500, 'Deploy infrastructure', fontsize=ft-1, fontstyle='italic')
+ax1.text(pd.to_datetime('{}-12-01'.format(deploy_year)), 7500, 'Deploy infrastructure', fontsize=ft-1, fontstyle='italic')
 ax1.set_title('Households Requiring Assistance', fontweight='bold', fontsize=ft+1)
 
 # add text for figure labels
-ax1.text(pd.to_datetime('2038-11-25'), 7400, 'a', fontsize=18, fontweight='bold')
-ax1.text(pd.to_datetime('2046-02-10'), 7300, 'b', fontsize=18, fontweight='bold')
+ax1.text(pd.to_datetime('{}-11-25'.format(deploy_year-10)), 7400, 'a', fontsize=18, fontweight='bold')
+ax1.text(pd.to_datetime('{}-02-10'.format(deploy_year-2)), 7300, 'b', fontsize=18, fontweight='bold')
 
-plt.savefig('../../outputs/Figures/explanatory/Figure5.png', dpi=300, bbox_inches='tight')
-plt.show()
+plt.savefig('../../outputs/Figures/Figure5_IE_Bars_TimeSeries.png', dpi=300, bbox_inches='tight')
+
+#%% print out statistics
+# get percentage of households receiving assistance in each group
+print('LOW INCOME')
+perc_baseline = arr_combined[0,0] / (arr_combined[0,0]+arr_combined[4, 0]) * 100
+perc_cc = arr_combined[0,2] / (arr_combined[0,2]+arr_combined[4, 2]) * 100
+print('baseline: {}%, CC: {}'.format(perc_baseline, perc_cc))
+
+print('BELOW MHI')
+perc_baseline = arr_combined[1,0] / (arr_combined[1,0]+arr_combined[5, 0]) * 100
+perc_cc = arr_combined[1,2] / (arr_combined[1,2]+arr_combined[5, 2]) * 100
+print('baseline: {}%, CC: {}'.format(perc_baseline, perc_cc))
+
+print('MHI TO HIGH')
+perc_baseline = arr_combined[2,0] / (arr_combined[2,0]+arr_combined[6, 0]) * 100
+perc_cc = arr_combined[2,2] / (arr_combined[2,2]+arr_combined[6, 2]) * 100
+print('baseline: {}%, CC: {}'.format(perc_baseline, perc_cc))
+
+print('HIGH')
+perc_baseline = arr_combined[3,0] / (arr_combined[3,0]+arr_combined[7, 0]) * 100
+perc_cc = arr_combined[3,2] / (arr_combined[3,2]+arr_combined[7, 2]) * 100
+print('baseline: {}%, CC: {}'.format(perc_baseline, perc_cc))

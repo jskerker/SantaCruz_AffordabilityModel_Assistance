@@ -11,17 +11,14 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 def get_ARs(df_bill, df_inc):
     # calculate affordability ratios
     bill_cols = [col for col in df_bill.columns if col.startswith('bill_')]
-    # print(bill_cols)
 
     AR_data = {}
     for col in bill_cols:
         # perform AR calcs
-        # print(col)
         AR_col_name = col.replace('bill', 'AR', 1)
         AR_data[AR_col_name] = (df_bill[col] / (df_inc['map_inc_1'] / 12)) * 100
 
     # create new dataframe
-    # print(AR_data)
     df_AR = pd.DataFrame(AR_data)
     return df_AR
 
@@ -29,9 +26,7 @@ def get_ARs(df_bill, df_inc):
 # function to get dataframes of bills, demand, and ARs
 def get_data(real, dP, dT, dCV, demand, income_class, filepath, om):
     # import data
-    # filename = filepath + 'df_sample_' + income_class + '_P{}T{}_dCV{}_real{}_demand{}.csv'.format(dP,dT,dCV,real, demand)
-    filename = filepath + 'df_sample_' + income_class + '_P{}T{}_dCV{}_real{}_demand{}{}.csv'.format(dP, dT, dCV, real,
-                                                                                                     demand, om)
+    filename = filepath + 'df_sample_' + income_class + '_P{}T{}_dCV{}_real{}_demand{}{}.csv'.format(dP, dT, dCV, real, demand, om)
     df = pd.read_csv(filename, index_col=0)
 
     prefixes = set(col.split('_')[0] for col in df.columns)
@@ -52,7 +47,6 @@ def get_data(real, dP, dT, dCV, demand, income_class, filepath, om):
             # split_dfs[f"{prefix}_{date}"] = df[matching_cols]
             split_dfs[f"{prefix}"] = df[matching_cols]
 
-    # print(split_dfs)
     df_inc = split_dfs["map"]
     df_demand = split_dfs["demand"]
     df_bill = split_dfs["bill"]
@@ -60,7 +54,7 @@ def get_data(real, dP, dT, dCV, demand, income_class, filepath, om):
     df_AR = get_ARs(df_bill, df_inc)
     return df_demand, df_bill, df_AR
 
-
+# function to get the cutoff start and end dates -- defined here manually
 def get_dates(real, dP, dT, dCV, demand, filepath):
     # get dates to split at
     filename_tt = 'df_time_tracker_P{}T{}_dCV{}_real{}_demand{}.csv'.format(dP, dT, dCV, real, demand)
@@ -75,7 +69,7 @@ def get_dates(real, dP, dT, dCV, demand, filepath):
 
     return cutoff_date_start, cutoff_date_end
 
-
+# function to split a dataframe by the data
 def split_df_by_date(df, cutoff_date_start, cutoff_date_end):
     no_inf_cols = []
     inf_cols = []
@@ -89,7 +83,6 @@ def split_df_by_date(df, cutoff_date_start, cutoff_date_end):
         if len(parts) == 3:
             month, year = int(parts[1]), int(parts[2])
             col_date = datetime(year, month, 1)
-            # print(col_date)
 
             # Categorize columns based on the cutoff date
             if col_date < cutoff_date_start:
@@ -123,7 +116,7 @@ def get_long_df(df, var_name):
 
     return df_long
 
-
+# load combinations of results into a long df
 def load_combinations(combinations, income_class, om, filepath):
     # create empty dataframes
     df_long_all = pd.DataFrame()
@@ -163,7 +156,6 @@ def load_combinations(combinations, income_class, om, filepath):
 def convert_monthly_to_annual_water_yr(df, col_name):
     # set index to date
     df = df.set_index('date')
-    # print(df)
     # add water year column to df
     df['water_year'] = df.index.year + (df.index.month >= 10)
 
@@ -174,7 +166,7 @@ def convert_monthly_to_annual_water_yr(df, col_name):
     df_water_yr = df_water_yr.set_index('date')  # change date col to index
     return df_water_yr
 
-
+# import result from df_results dataframe
 def import_df_results(filepath, real, dT, dP, dCV, demand, name_add):
     df_results = pd.read_csv(filepath + 'df_results_{}P{}T{}_dCV{}_real{}_demand{}.csv'.format(name_add, dP, dT, dCV, real, demand))
     df_results['Date'] = pd.to_datetime(df_results['Date'])
@@ -183,7 +175,7 @@ def import_df_results(filepath, real, dT, dP, dCV, demand, name_add):
     df_results = df_results.set_index('Date')
     return df_results
 
-
+# get average water system results
 def get_avg_precip(df_results):
     cols = ['unmetDemandMG', 'percReliability', 'precip_in', 'waterAvail', 'reservoirMG']
     df = pd.DataFrame(columns=cols)
@@ -198,7 +190,7 @@ def get_avg_precip(df_results):
                  'waterAvail': waterAvail, 'reservoirMG': reservoirMG}
     return df
 
-
+# load results for one climate combination
 def load_combinations_single(combo, income_class, om, filepath):
     # process data
     df_demand, df_bill, df_AR = get_data(combo[0], combo[2], combo[1], combo[3], combo[4], income_class, filepath, om)
@@ -222,7 +214,7 @@ def get_long_df_single(filepath, combo, name_add, om):
     arr_hh = np.load(filepath + 'arr_hh_data_{}P{}T{}_dCV{}_real{}_demand{}.npy'.format(name_add,combo[2], combo[1], combo[3], combo[0], combo[4]))
 
     # import household income data
-    filepath_hh = '../../data/dcc_data/resampled_income_data_30Nov2024.csv'
+    filepath_hh = '../../data/dcc_data/resampled_income_data.csv'
     df_hh = pd.read_csv(filepath_hh)
 
     # Create Monthly Dates (assuming starting from Jan 2020)
@@ -237,7 +229,6 @@ def get_long_df_single(filepath, combo, name_add, om):
     income = df_hh['map_inc_1'].to_numpy()
 
     # Reshape into long format (flatten the first two dimensions)
-    #reshaped_data = arr_hh.reshape(arr_hh.shape[0] * arr_hh.shape[1], arr_hh.shape[2])
     reshaped_data = arr_hh.reshape(-1, arr_hh.shape[2])
 
     # Create a DataFrame with account, date, and three parameter columns
@@ -249,14 +240,6 @@ def get_long_df_single(filepath, combo, name_add, om):
         "Bill": reshaped_data[:, 1],
         "AR": reshaped_data[:, 2]
     })
-    # df_long = pd.DataFrame({
-    #     "Account": np.repeat(accounts, num_months),  # Repeat each account ID for all months
-    #     "date": np.tile(dates, arr_hh.shape[0]),  # Repeat the dates across all accounts
-    #     "Income": np.repeat(income, num_months),
-    #     "Demand": reshaped_data[:, 0],
-    #     "Bill": reshaped_data[:, 1],
-    #     "AR": reshaped_data[:, 2]
-    # })
     df_long['Year'] = df_long['date'].dt.year.astype("int16")
     df_long['Month'] = df_long['date'].dt.month.astype("int8")
     return df_long
@@ -402,12 +385,7 @@ def aggregate_sows_for_hh_data(filepath, rof, inf_order, combinations):
             entries[idx].update(row.to_dict())
         my_list_avg.extend(entries)
 
-        # add long data to my_list_long
-        # rows_list = df_long.to_dict(orient='records')
-        # my_list_long.extend(rows_list)
-
-    # df = pd.DataFrame(list)
-    return my_list_avg  # , my_list_long
+    return my_list_avg
 
 # define a function to import aggregate results for a single policy across SOWs
 def aggregate_sows_for_hh_data_medium(filepath, rof, inf_order, combinations):
@@ -440,10 +418,6 @@ def aggregate_sows_for_hh_data_medium(filepath, rof, inf_order, combinations):
         for idx, row in df_group.iterrows():
             entries[idx].update(row.to_dict())
         my_list_avg.extend(entries)
-
-        # add long data to my_list_long
-        # rows_list = df_long.to_dict(orient='records')
-        # my_list_long.extend(rows_list)
 
     # df = pd.DataFrame(list)
     return my_list_avg  # , my_list_long
@@ -539,6 +513,30 @@ def get_max_rate_dates_IE(filepath, combo, name_add):
     for tier in np.arange(1, 4):
         df_cashflow['Rate_T{}_upd'.format(tier)] = df_cashflow['Quant_T{}_upd'.format(tier)] + df_cashflow[
             'IRF_T{}_upd'.format(tier)]
+            
+        
+        # 3. get max "marginal" rate
+        max_value = df_cashflow['Rate_T{}_upd'.format(tier)].max()
+        max_rates.append(max_value)
+
+    # 4. extract dates with max "marginal" rate
+    df_max_rate_dates = pd.to_datetime(df_cashflow.loc[df_cashflow['Rate_T1_upd'] == max_rates[0], 'Date'].tolist())
+    return df_cashflow, max_rates, df_max_rate_dates
+
+# Income estimation sensitivity version
+def get_max_rate_dates_IE2(filepath, combo, name_add, ie):
+    # 1. import df_cashflow data
+    filename_cashflow = 'df_cashflow_{}P{}T{}_dCV{}_real{}_demand{}_IE{}.csv'.format(name_add, combo[2], combo[1], combo[3], combo[0],
+                                                                              combo[4], ie)
+    df_cashflow = pd.read_csv(filepath + filename_cashflow)
+    df_cashflow['Date'] = pd.to_datetime(df_cashflow['Date'])
+
+    # 2. get "marginal" rates by adding up quant and IRF charges
+    max_rates = []
+    for tier in np.arange(1, 4):
+        df_cashflow['Rate_T{}_upd'.format(tier)] = df_cashflow['Quant_T{}_upd'.format(tier)] + df_cashflow[
+            'IRF_T{}_upd'.format(tier)]
+
         # 3. get max "marginal" rate
         max_value = df_cashflow['Rate_T{}_upd'.format(tier)].max()
         max_rates.append(max_value)
@@ -608,7 +606,7 @@ def aggregate_sows_for_policy_monthly(filepath, rof, inf_order, combinations, na
 
     return df_long
 
-# updated 3/25 to aggregate monthly hh data using array instead of df
+# function: updated to aggregate monthly hh data using array instead of df
 def aggregate_sows_for_hh_data_long(filepath, rof, inf_order, combinations, name_add):
     df_list = []
     for combo in combinations:

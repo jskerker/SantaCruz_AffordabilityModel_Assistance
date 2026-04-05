@@ -17,7 +17,6 @@ import warnings
 warnings.filterwarnings("ignore")
 import processing_functions_March2025 as pf
 from matplotlib.patches import Patch
-sys.path.append('/Users/jenniferskerker/Documents/GradSchool/Research/Equity/Model/Santa_Cruz_WRM_Assistance/scripts')
 from Setup_SCWSM_Option_Analysis_CST import simSetup
 
 
@@ -26,7 +25,6 @@ def process_monthly_data_to_annual(df):
     # df = df[df['Water_Year'] != 2021]
 
     # aggregate data to annual
-    # df_annual = df.groupby('Water_Year', as_index=False)[['tot_assist_income', 'tot_assist_fixedDollar', 'tot_assist_fee', 'tot_assist_vol']].sum()
     df_annual = df.groupby('Water_Year').agg({
         'tot_assist_income': 'sum',
         'tot_assist_fixedDollar_$50': 'sum',
@@ -37,12 +35,11 @@ def process_monthly_data_to_annual(df):
         'Date': 'count'  # Replace with the actual column you want to count
     })
     df_annual['count'] = df_annual['Date']
-    return df_annual  # function to process monthly data to annual (like above) but with the added step of only including dates with the max rates
+    return df_annual
 
-
+# function to process monthly data to annual (like above) but with the added step of only including dates with the max rates
 def process_monthly_data_to_annual_dates_filter(filepath, combo, name_add):
     df_cashflow, max_rates, df_max_rate_dates = pf.get_max_rate_dates(filepath, combo, name_add)
-    # print(df_max_rate_dates)
     df = pd.read_csv(
         filepath + 'df_monthly_assistance_{}P{}T{}_dCV{}_real{}_demand{}.csv'.format(name_add, combo[2], combo[1],
                                                                                      combo[3], combo[0], combo[4]))
@@ -50,7 +47,6 @@ def process_monthly_data_to_annual_dates_filter(filepath, combo, name_add):
     df_filter = df[df['Date'].isin(df_max_rate_dates)]
     df['Water_Year'] = df['Date'].dt.year + (df['Date'].dt.month >= 10)
     df_annual = process_monthly_data_to_annual(df_filter)
-    # print(df_annual.head())
     df_annual = df_annual[df_annual['count'] == 12]
     df_annual['real'] = combo[0]
     df_annual['dT'] = combo[1]
@@ -86,7 +82,7 @@ def import_df_results(filepath, real, dT, dP, dCV, demand, name_add):
     return df_results
 
 
-# updated function (2/4/25) to aggregate monthly data for each SOW for a given policy
+# updated function to aggregate monthly data for each SOW for a given policy
 def aggregate_sows_for_policy_monthly(filepath, rof, inf_order, combinations, name_add):
     df_long = pd.DataFrame()
     cols = ['Urban_Demand_Prior_Rationing', 'Urban_Water_Supply_Deficit_MGD', 'precip_LL_in', 'Flow_through_GHWTP_MGD',
@@ -174,7 +170,7 @@ print(combinations)
 df_combined = pd.DataFrame()
 
 # baseline conditions
-filepath = '/Volumes/OneTouch/CAPs_Results/Results_Baseline_Oct2025/'
+filepath = '../../results/CAPs_Results/'
 for combo in combinations:
     print(combo)
     name_add = 'Baseline_'
@@ -190,14 +186,14 @@ for combo in combinations:
 list_scenario_data = [df_combined]
 
 # loop through SA scenarios
-filepath = '/Volumes/OneTouch/CAPs_Results/Results_SA_Oct2025/'
+filepath = '../../results/CAPs_Results/'
 scenario_file_names = ['Demands_High_', 'Demands_Low_', 'DesalTime_Fast_', 'DesalTime_Slow_', 'InfCosts_High_',
                        'InfCosts_Low_', 'InterestRate_High_', 'InterestRate_Low_', 'CoS_High_', 'CoS_Low_']
 
 scenario_names = ['Baseline', 'High Demands', 'Low Demands', 'Fast Desal. Deploy Time', 'Slow Desal. Deploy Time',
                   'High Infrastructure Costs', 'Low Infrastructure Costs', 'High Interest Rate',
                   'Low Infrastructure Rate', 'High Cost of Service',
-                  'Low Cost of Service']  # 'Low Infrastructure Costs', , 'Low Interest Rate'
+                  'Low Cost of Service']
 
 for scenario in scenario_file_names:
     print(scenario)
@@ -218,7 +214,7 @@ for scenario in scenario_file_names:
 columns = ['Date', 'does_acct_get_assistance?', 'AR_assist_income', 'AR_assist_fixedDollar_$50', #'AR_assist_fixedDollar_$100', 'AR_assist_fee',
         'AR_assist_vol_55%'] #, 'AR_assist_vol_80%']
 
-filepath = '/Volumes/OneTouch/CAPs_Results/Results_Baseline_Oct2025/'
+filepath = filepath = '../../results/CAPs_Results/'
 name_add = 'Baseline_'
 df_list = []
 # loop through combinations
@@ -232,7 +228,7 @@ for combo in combinations:
 # convert list to df
 df_hh = pd.concat(df_list, ignore_index=True)
 # save df
-filepath_save = '/Volumes/OneTouch/CAPs_Results/Results_SA_Oct2025/'
+filepath_save = '../../results/CAPs_Results/'
 df_hh.to_csv(filepath_save + 'df_hh_SA_{}.csv'.format(name_add))
 
 #%% Compile household-level data
@@ -260,7 +256,6 @@ for scenario in scenario_file_names:
 
 # Import household-level data
 # import household data
-filepath = '/Volumes/OneTouch/CAPs_Results/Results_SA_Oct2025/'
 scenario_file_names = ['Baseline_', 'Demands_High_', 'Demands_Low_', 'DesalTime_Fast_', 'DesalTime_Slow_',
                        'InfCosts_High_', 'InfCosts_Low_', 'InterestRate_High_', 'InterestRate_Low_', 'CoS_High_',
                        'CoS_Low_']
@@ -416,6 +411,41 @@ ax13.set_xlim([-1, 15])
 ax11.text(-5, 1.4, 'Monthly Assistance Costs', fontsize=12, fontweight='bold', rotation=90)
 ax11.text(-5, 0.0, 'Monthly Affordability Ratios', fontsize=12, fontweight='bold', rotation=90)
 
-plt.savefig('../../outputs/Figures/SI/SA_CDFs_10Oct2025.png', bbox_inches='tight')
+plt.savefig('../../outputs/Figures/SI/SA_CDFs.png', bbox_inches='tight')
 plt.show()
+
+#%% Get data for SI table
+# get count and assistance cost statistics data
+cols = ['Count', 'tot_assist_income', 'tot_assist_vol_55%']
+
+for i in range(len(list_scenario_data)):
+    for col in cols:
+        print('\n' + scenario_names[i])
+        df = list_scenario_data[i]
+        print('50th and 80th {}: {} and {}'.format(col, np.nanquantile(df[col], 0.5),
+                                               np.nanquantile(df[col], 0.8)))
+        
+# get monthly reliability data
+# baseline data
+filepath = '/Volumes/OneTouch/CAPs_Results/Results_Baseline_Oct2025/'
+rof = 0.654
+inf_order = ['desal', 'dpr', 'mcasr', 'transfer_soquel', 'transfer_sv']
+col = 'percReliability'
+
+
+# SA data
+for i in range(len(scenario_file_names)):
+    print('\n' + scenario_file_names[i])
+    if i==0:
+        filepath = '/Volumes/OneTouch/CAPs_Results/Results_Baseline_Oct2025/'
+    else: 
+        filepath = '/Volumes/OneTouch/CAPs_Results/Results_SA_Oct2025/'
+    df_monthly = aggregate_sows_for_policy_monthly(filepath, rof, inf_order, combinations, scenario_file_names[i])
+    df_monthly.to_csv(filepath + 'df_monthly_{}.csv'.format(scenario_names[i]))
+    print('50th, 80th, 95th, 98th percentile monthly reliability: {}, {}, {}, {}'.format(np.nanquantile(df_monthly[col], 0.5),
+                                                                      np.nanquantile(df_monthly[col], 0.2),
+                                                                              np.nanquantile(df_monthly[col], 0.05),
+                                                                                         np.nanquantile(df_monthly[col], 0.02)))
+    
+    
 

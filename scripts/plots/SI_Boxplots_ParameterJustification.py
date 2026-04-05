@@ -17,16 +17,12 @@ import warnings
 warnings.filterwarnings("ignore")
 import processing_functions_March2025 as pf
 from matplotlib.patches import Patch
-sys.path.append('/Users/jenniferskerker/Documents/GradSchool/Research/Equity/Model/Santa_Cruz_WRM_Assistance/scripts')
 from Setup_SCWSM_Option_Analysis_CST import simSetup
 
 
 def process_monthly_data_to_annual(df):
-    # remove Water_Year 2021 data
-    # df = df[df['Water_Year'] != 2021]
 
     # aggregate data to annual
-    # df_annual = df.groupby('Water_Year', as_index=False)[['tot_assist_income', 'tot_assist_fixedDollar', 'tot_assist_fee', 'tot_assist_vol']].sum()
     df_annual = df.groupby('Water_Year').agg({
         'tot_assist_income': 'sum',
         'tot_assist_fixedDollar_$35': 'sum',
@@ -58,12 +54,11 @@ def process_monthly_data_to_annual(df):
         'Date': 'count'  # Replace with the actual column you want to count
     })
     df_annual['count'] = df_annual['Date']
-    return df_annual  # function to process monthly data to annual (like above) but with the added step of only including dates with the max rates
+    return df_annual
 
-
+# function to process monthly data to annual (like above) but with the added step of only including dates with the max rates
 def process_monthly_data_to_annual_dates_filter(filepath, combo, name_add):
     df_cashflow, max_rates, df_max_rate_dates = pf.get_max_rate_dates(filepath, combo, name_add)
-    # print(df_max_rate_dates)
     df = pd.read_csv(
         filepath + 'df_monthly_assistance_{}P{}T{}_dCV{}_real{}_demand{}.csv'.format(name_add, combo[2], combo[1],
                                                                                      combo[3], combo[0], combo[4]))
@@ -71,7 +66,6 @@ def process_monthly_data_to_annual_dates_filter(filepath, combo, name_add):
     df_filter = df[df['Date'].isin(df_max_rate_dates)]
     df['Water_Year'] = df['Date'].dt.year + (df['Date'].dt.month >= 10)
     df_annual = process_monthly_data_to_annual(df_filter)
-    # print(df_annual.head())
     df_annual = df_annual[df_annual['count'] == 12]
     df_annual['real'] = combo[0]
     df_annual['dT'] = combo[1]
@@ -99,7 +93,7 @@ print('import packages & define functions')
 
 #%% Import baseline data
 # import baseline data
-filepath = '/Volumes/OneTouch/CAPs_Results/Results_updated_Oct2025/'
+filepath = '../../results/CAPs_Results/'
 real_All = [1270, 1956, 1987, 2770, 3449, 3515, 3574, 4211, 4373, 4937]
 dT_All = [0]
 dP_All = [100]
@@ -119,7 +113,6 @@ for combo in combinations:
 
 #%% Import moderate and dry climate data
 # import mod, cool and dry, hot data
-filepath = '/Volumes/OneTouch/CAPs_Results/Results_updated_Oct2025/'
 real_All = [1270, 1956, 1987, 2770, 3449, 3515, 3574, 4211, 4373, 4937]
 dT_All = [0, 1]
 dP_All = [100]
