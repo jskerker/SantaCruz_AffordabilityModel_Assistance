@@ -1,7 +1,7 @@
 # Santa Cruz Affordability Model: Assistance Paper Repository for "Evaluating the role of customer assistance programs to ensure climate-resilient, affordable water"
 
 Python implementation of a systems modeling framework using Pywr for understanding the results in:
-- Skerker, J.B., Markey, G., Post, R., Klassert, C., Francois, B., Brown, C., and Fletcher, S.M., Evaluating the role of customer assistance programs to ensure climate-resilient, affordable water, Under Review.
+- Skerker, J.B., Markey, G., Klassert, C., Francois, B., Post, R., Brown, C., and Fletcher, S.M., Evaluating the role of customer assistance programs to ensure climate-resilient, affordable water, Under Review.
 Code documentation by: Jennifer Skerker, Stanford University. Last updated: March 2025.
 
 Notes: This repository includes all of the novel code developed for this work. Please see the PDF "Git Documentation & Organization" for more details.
